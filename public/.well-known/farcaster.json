@@ -1,0 +1,22 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOiA4Njk5NiwgInR5cGUiOiAiY3VzdG9keSIsICJrZXkiOiAiMHg1QzYzOEY1QzYyNzFBNzMxMDYyZTE4MThFNDc1RTM2YTY0ODZBYzMwIn0",
+    "payload": "eyJkb21haW4iOiAibWluaS1hcHAtZnVsbC1kZW1vLnZlcmNlbC5hcHAifQ",
+    "signature": "MHgwNTRiM2Q5YWRhMTRlM2E5ZGE2OTllODFhODMxODVjMzQ2ODVkN2MwM2FjODQ1NDU2ODQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU0NTQ1NDU"
+  },
+  "frame": {
+    "version": "1",
+    "name": "Base Dating App",
+    "iconUrl": "https://base-dating.vercel.app/favicon.ico",
+    "homeUrl": "https://base-dating.vercel.app",
+    "imageUrl": "https://base-dating.vercel.app/opener-image.png",
+    "buttonTitle": "Find Match",
+    "splashImageUrl": "https://base-dating.vercel.app/favicon.ico",
+    "splashBackgroundColor": "#ffffff",
+    "webhookUrl": "https://base-dating.vercel.app/api/webhook",
+    "tags": [
+      "social",
+      "base"
+    ]
+  }
+}
