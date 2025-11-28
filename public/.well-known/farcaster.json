@@ -6,17 +6,14 @@
   },
   "frame": {
     "version": "1",
-    "name": "Base Dating App",
-    "iconUrl": "https://base-dating.vercel.app/favicon.ico",
+    "name": "Base Dating",
+    "iconUrl": "https://base-dating.vercel.app/icon.png",
     "homeUrl": "https://base-dating.vercel.app",
     "imageUrl": "https://base-dating.vercel.app/opener-image.png",
     "buttonTitle": "Find Match",
-    "splashImageUrl": "https://base-dating.vercel.app/favicon.ico",
+    "splashImageUrl": "https://base-dating.vercel.app/icon.png",
     "splashBackgroundColor": "#ffffff",
     "webhookUrl": "https://base-dating.vercel.app/api/webhook",
-    "tags": [
-      "social",
-      "base"
-    ]
+    "primaryCategory": "social"
   }
 }
