@@ -1,10 +1,7 @@
-// src/constants.ts
+export const CONTRACT_ADDRESS = "0xbDFCa58D5BEe898da74e17847E9870380708d049"; 
 
-// 👇 Tempel alamat kontrak kamu di sini (contoh: "0x123abc...")
-export const CONTRACT_ADDRESS = "0x3C5F31E167bA64Bc693B4d32517e2f81d61Bc64A"; 
-
-// ABI = Kamus agar frontend mengerti fungsi 'swipe' di smart contract
 export const DATING_ABI = [
+  // ... Event Swiped lama ...
   {
     "anonymous": false,
     "inputs": [
@@ -15,12 +12,13 @@ export const DATING_ABI = [
     "name": "Swiped",
     "type": "event"
   },
+  // 👇 FUNGSI BARU INI WAJIB ADA
   {
     "inputs": [
-      { "internalType": "uint256", "name": "targetFid", "type": "uint256" },
-      { "internalType": "bool", "name": "liked", "type": "bool" }
+      { "internalType": "uint256[]", "name": "targetFids", "type": "uint256[]" },
+      { "internalType": "bool[]", "name": "likeds", "type": "bool[]" }
     ],
-    "name": "swipe",
+    "name": "batchSwipe",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
