@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-// 👇 Hapus 'type FrameContext', cukup import sdk saja biar aman
 import sdk from "@farcaster/frame-sdk";
 import { useWriteContract, useWaitForTransactionReceipt, useAccount, useConnect } from "wagmi";
 import { SwipeCard } from "../components/SwipeCard"; 
@@ -16,8 +15,6 @@ const MOCK_PROFILES = Array.from({ length: 60 }).map((_, i) => ({
 export default function Home() {
   const [profiles, setProfiles] = useState(MOCK_PROFILES);
   const [mounted, setMounted] = useState(false);
-  
-  // 👇 Ganti jadi <any> supaya tidak error TypeScript lagi
   const [context, setContext] = useState<any>();
 
   // QUEUE STATE
@@ -27,6 +24,12 @@ export default function Home() {
   const { isConnected } = useAccount();
   const { connectors, connect } = useConnect();
   
+  // 👇 FILTER LOGIC: Biar gak kebanyakan tombol
+  const filteredConnectors = connectors.filter((c) => 
+    c.id === 'coinbaseWalletSDK' || 
+    c.name.toLowerCase().includes('metamask')
+  );
+
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
@@ -47,25 +50,20 @@ export default function Home() {
   // --- LOGIC ---
   const handleSwipe = (liked: boolean) => {
     const currentProfile = profiles[0];
-    
     const newFids = [...queueFids, BigInt(currentProfile.fid)];
     const newLikes = [...queueLikes, liked];
     
     setQueueFids(newFids);
     setQueueLikes(newLikes);
 
-    console.log(`Queue: ${newFids.length}/50`);
-
-    // Auto-save at 50
     if (newFids.length >= 50) {
         commitSwipes(newFids, newLikes);
     }
-
     setProfiles((prev) => prev.slice(1));
   };
 
   const commitSwipes = (fids: bigint[], likes: boolean[]) => {
-    console.log("🚀 Submitting batch to Blockchain...");
+    console.log("🚀 Submitting batch...");
     writeContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: DATING_ABI,
@@ -90,7 +88,6 @@ export default function Home() {
       <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
         <h1 className="text-3xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
         
-        {/* Tampilkan Nama User jika dibuka di Farcaster */}
         {context?.user ? (
             <p className="text-gray-600 mb-6">Welcome, @{context.user.username}!</p>
         ) : (
@@ -98,11 +95,19 @@ export default function Home() {
         )}
 
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          {connectors.map((connector) => (
+          {/* 👇 Pakai filteredConnectors disini */}
+          {filteredConnectors.map((connector) => (
             <button key={connector.uid} onClick={() => connect({ connector })} className="bg-white border border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
               Connect {connector.name}
             </button>
           ))}
+          
+          {/* Jika tidak ada wallet yang cocok, tampilkan pesan */}
+          {filteredConnectors.length === 0 && (
+             <button onClick={() => connect({ connector: connectors[0] })} className="bg-black text-white px-6 py-3 rounded-xl font-bold">
+                Connect Wallet
+             </button>
+          )}
         </div>
       </main>
     );
@@ -111,12 +116,11 @@ export default function Home() {
   // MAIN SCREEN
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative">
-      
       <div className="absolute top-4 w-full px-4 flex justify-between items-center z-20">
          <h1 className="text-xl font-bold text-blue-600">Base Dating</h1>
          <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border">
             {isPending || isConfirming ? (
-                <span className="text-orange-500 animate-pulse">⏳ Saving to chain...</span>
+                <span className="text-orange-500 animate-pulse">⏳ Saving...</span>
             ) : (
                 <span className={queueFids.length > 40 ? "text-red-500 font-bold" : "text-gray-600"}>
                     💾 Pending: {queueFids.length}/50
@@ -143,10 +147,7 @@ export default function Home() {
           <div className="text-center">
              <p className="text-2xl mb-4 text-gray-600">No more profiles!</p>
              {queueFids.length > 0 ? (
-                <button 
-                    onClick={() => commitSwipes(queueFids, queueLikes)} 
-                    className="bg-green-600 text-white px-6 py-3 rounded-full font-bold shadow-lg animate-bounce"
-                >
+                <button onClick={() => commitSwipes(queueFids, queueLikes)} className="bg-green-600 text-white px-6 py-3 rounded-full font-bold shadow-lg animate-bounce">
                     Save Last {queueFids.length} Swipes 🚀
                 </button>
              ) : (
@@ -157,14 +158,10 @@ export default function Home() {
       </div>
 
       {queueFids.length > 0 && queueFids.length < 50 && (
-          <button 
-            onClick={() => commitSwipes(queueFids, queueLikes)}
-            className="fixed bottom-6 right-6 bg-black text-white px-4 py-2 rounded-full text-xs font-bold shadow-xl z-50 hover:scale-105 transition"
-          >
+          <button onClick={() => commitSwipes(queueFids, queueLikes)} className="fixed bottom-6 right-6 bg-black text-white px-4 py-2 rounded-full text-xs font-bold shadow-xl z-50 hover:scale-105 transition">
             Save Progress ({queueFids.length})
           </button>
       )}
-
     </main>
   );
 }
