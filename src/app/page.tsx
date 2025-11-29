@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import sdk from "@farcaster/frame-sdk";
-import { useWriteContract, useWaitForTransactionReceipt, useAccount, useConnect, useWatchContractEvent } from "wagmi";
+import { useWriteContract, useWaitForTransactionReceipt, useAccount, useConnect, useWatchContractEvent, useChainId, useSwitchChain } from "wagmi";
+import { base } from "wagmi/chains"; // Menggunakan BASE Mainnet
 import { SwipeCard } from "../components/SwipeCard"; 
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
@@ -17,12 +18,10 @@ type FarcasterUser = {
 };
 
 export default function Home() {
-  // State Data (Kosongkan dulu, nanti diisi API)
   const [profiles, setProfiles] = useState<FarcasterUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [mounted, setMounted] = useState(false);
   
-  // Gunakan 'any' untuk context agar tidak rewel
   const [context, setContext] = useState<any>();
 
   // GENDER CHOICE STATE
@@ -35,7 +34,11 @@ export default function Home() {
   const { isConnected, address } = useAccount();
   const { connectors, connect } = useConnect();
   
-  // Filter wallets
+  // Logic Cek Network
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  const isWrongNetwork = isConnected && chainId !== base.id; // Cek Base Mainnet
+
   const filteredConnectors = connectors.filter((c) => 
     c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('metamask') || c.id === 'injected'
   );
@@ -43,22 +46,18 @@ export default function Home() {
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. FETCH REAL USERS (NEYNAR API)
-  // Ini adalah pengganti bagian Dummy Data yang lama
+  // 1. FETCH & SIMULATE USERS
   useEffect(() => {
-    const fetchRealUsers = async () => {
+    const fetchUsers = async () => {
       setIsLoadingUsers(true);
       try {
-        // Ambil 50 user acak dari range FID 1 - 50000 (User aktif)
-        // Kita acak start-nya biar profil yang muncul beda-beda tiap refresh
-        const randomStart = Math.floor(Math.random() * 10000) + 1;
+        // Ambil 50 user acak dari range FID 1 - 50000
+        const randomStart = Math.floor(Math.random() * 20000) + 1;
         const randomFids = Array.from({ length: 50 }, (_, i) => randomStart + i).join(',');
 
-        // Panggil API Neynar
         const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${randomFids}`, {
             headers: {
                 accept: 'application/json',
-                // Pastikan Key ini ada di Vercel Environment Variables
                 api_key: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || 'NEYNAR_API_DOCS'
             }
         });
@@ -67,27 +66,22 @@ export default function Home() {
         
         if (data.users) {
             const realUsers: FarcasterUser[] = data.users.map((u: any, index: number) => {
-                // Prioritaskan verified address (wallet yang dikonek), kalau gak ada pake custody (wallet pendaftar)
                 const wallet = u.verified_addresses.eth_addresses[0] || u.custody_address;
-                
                 return {
                     fid: u.fid,
                     username: u.username,
                     display_name: u.display_name,
                     pfp_url: u.pfp_url,
                     custody_address: wallet,
-                    // Simulasi Gender (Selang-seling karena API tidak punya data gender)
                     gender: index % 2 === 0 ? 'female' : 'male' 
                 };
             });
 
-            // Filter user yang datanya tidak lengkap atau walletnya null
             const cleanUsers = realUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address !== '0x0000000000000000000000000000000000000000');
-            
             setProfiles(cleanUsers);
         }
       } catch (e) {
-        console.error("Gagal fetch Neynar:", e);
+        console.error("Error fetching", e);
       } finally {
         setIsLoadingUsers(false);
       }
@@ -95,10 +89,7 @@ export default function Home() {
 
     const load = async () => {
       setMounted(true);
-      
-      // Fetch user hanya jika profil masih kosong
-      if (profiles.length === 0) fetchRealUsers(); 
-
+      if (profiles.length === 0) fetchUsers();
       try {
         const ctx = await sdk.context;
         setContext(ctx);
@@ -108,30 +99,22 @@ export default function Home() {
       }
     };
     if (sdk && !mounted) load();
-  }, [mounted]); // Dependency mounted agar jalan sekali di awal
+  }, [mounted]);
 
-// 2. AUTO CONNECT (Optimized)
+  // 2. AUTO CONNECT (Farcaster)
   useEffect(() => {
-    // Cek syarat utama dulu
-    if (!mounted || !context || isConnected) return;
-
-    // Beri jeda 500ms agar wallet extension punya waktu untuk inject ke browser
-    const timer = setTimeout(() => {
+    if (context && !isConnected && mounted) {
         const farcasterWallet = connectors.find(c => c.id === 'injected');
-        
         if (farcasterWallet) {
-            console.log("Auto-connecting to Farcaster Wallet...");
             connect({ connector: farcasterWallet });
         }
-    }, 500); // Delay 0.5 detik
-
-    return () => clearTimeout(timer); // Bersihkan timer jika komponen unmount
+    }
   }, [context, isConnected, connectors, connect, mounted]);
 
-  // 3. FILTER PROFILES (Opposite Gender)
+  // 3. FILTER PROFILES
   const filteredProfiles = profiles.filter(p => p.gender !== myGender);
 
-  // 4. WATCH FOR MATCHES (Event Listener)
+  // 4. WATCH FOR MATCHES
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -149,23 +132,21 @@ export default function Home() {
 
   // --- ACTIONS ---
   const handleSwipe = (liked: boolean) => {
-    // Ambil profile dari list yang sudah difilter gender
+    // Cek jika habis
     if (filteredProfiles.length === 0) return;
     const currentProfile = filteredProfiles[0];
     
-    // Simpan ADDRESS, bukan FID
     const newAddr = [...queueAddr, currentProfile.custody_address];
     const newLikes = [...queueLikes, liked];
     
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
-    // Auto-save at 5 swipes (Batch kecil untuk testing)
-    if (newAddr.length >= 5) {
+    // 👇 UPDATE DISINI: Auto-save hanya jika sudah 50
+    if (newAddr.length >= 50) {
         commitSwipes(newAddr, newLikes);
     }
     
-    // Remove from UI (Hapus berdasarkan FID dari list utama)
     setProfiles((prev) => prev.filter(p => p.fid !== currentProfile.fid));
   };
 
@@ -175,16 +156,15 @@ export default function Home() {
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: DATING_ABI,
       functionName: 'batchSwipe',
-      // 👇 Pakai 'as any' agar TypeScript tidak error validasi string vs address
       args: [addrs as any, likes], 
     });
   };
 
-  // Bersihkan antrian setelah sukses
   useEffect(() => {
     if (isSuccess) {
       setQueueAddr([]);
       setQueueLikes([]);
+      alert("✅ 50 Swipes Saved On-Chain!");
     }
   }, [isSuccess]);
 
@@ -192,7 +172,7 @@ export default function Home() {
 
   // --- RENDER ---
 
-  // 1. LOGIN SCREEN
+  // A. LOGIN SCREEN
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -217,7 +197,20 @@ export default function Home() {
     );
   }
 
-  // 2. GENDER SELECTION
+  // B. WRONG NETWORK SCREEN
+  if (isWrongNetwork) {
+    return (
+        <main className="min-h-screen flex flex-col items-center justify-center bg-red-50 p-4 text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Wrong Network ⚠️</h2>
+            <p className="text-gray-600 mb-6">Please switch to Base Mainnet</p>
+            <button onClick={() => switchChain({ chainId: base.id })} className="bg-red-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-red-700">
+                🔀 Switch Network
+            </button>
+        </main>
+    );
+  }
+
+  // C. GENDER SELECTION
   if (!myGender) {
       return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center animate-in fade-in zoom-in duration-500">
@@ -230,18 +223,22 @@ export default function Home() {
       );
   }
 
-  // 3. MAIN SWIPE INTERFACE
+  // D. SWIPE DECK
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative">
       <div className="absolute top-4 w-full px-4 flex justify-between items-center z-20">
          <h1 className="text-xl font-bold text-blue-600">Base Dating</h1>
          <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border">
-            {isPending ? <span className="text-orange-500 animate-pulse">⏳ Saving...</span> : <span>💾 Pending: {queueAddr.length}/5</span>}
+            {isPending ? (
+                <span className="text-orange-500 animate-pulse">⏳ Saving...</span>
+            ) : (
+                // 👇 UPDATE DISINI: Tampilkan limit 50
+                <span>💾 Pending: {queueAddr.length}/50</span>
+            )}
          </div>
       </div>
 
       <div className="relative w-72 h-96 mt-8">
-        {/* Loading Spinner saat fetch API */}
         {isLoadingUsers && filteredProfiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -268,12 +265,13 @@ export default function Home() {
         ) : (
           <div className="text-center">
              <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
-             <button onClick={() => setMyGender(null)} className="bg-gray-200 px-4 py-2 rounded-full text-sm mb-4">Change My Gender</button>
-             {/* Tombol Refresh User */}
-             <button onClick={() => window.location.reload()} className="block mx-auto bg-blue-500 text-white px-6 py-2 rounded-full shadow mb-4">Refresh Users</button>
+             <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4">Refresh Users</button>
              
+             {/* Tombol Simpan Manual jika user berhenti sebelum 50 */}
              {queueAddr.length > 0 && (
-                 <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow">Save Pending</button>
+                 <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow">
+                    Save Pending ({queueAddr.length})
+                 </button>
              )}
           </div>
         )}
