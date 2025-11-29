@@ -110,14 +110,22 @@ export default function Home() {
     if (sdk && !mounted) load();
   }, [mounted]); // Dependency mounted agar jalan sekali di awal
 
-  // 2. AUTO CONNECT (Farcaster)
+// 2. AUTO CONNECT (Optimized)
   useEffect(() => {
-    if (context && !isConnected && mounted) {
+    // Cek syarat utama dulu
+    if (!mounted || !context || isConnected) return;
+
+    // Beri jeda 500ms agar wallet extension punya waktu untuk inject ke browser
+    const timer = setTimeout(() => {
         const farcasterWallet = connectors.find(c => c.id === 'injected');
+        
         if (farcasterWallet) {
+            console.log("Auto-connecting to Farcaster Wallet...");
             connect({ connector: farcasterWallet });
         }
-    }
+    }, 500); // Delay 0.5 detik
+
+    return () => clearTimeout(timer); // Bersihkan timer jika komponen unmount
   }, [context, isConnected, connectors, connect, mounted]);
 
   // 3. FILTER PROFILES (Opposite Gender)
