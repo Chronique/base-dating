@@ -5,9 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { baseSepolia } from "wagmi/chains"; 
 import { type ReactNode, useState } from "react";
 import { type State, WagmiProvider, createConfig, http } from "wagmi";
-import { coinbaseWallet, injected } from "wagmi/connectors"; 
-// Import connector khusus Farcaster (jika ada di library frame-sdk, 
-// tapi karena kita pakai wagmi standar, kita gunakan 'injected' sebagai prioritas di mobile)
+import { coinbaseWallet, injected, metaMask } from "wagmi/connectors"; 
 
 const getConfig = () => {
   return createConfig({
@@ -16,13 +14,17 @@ const getConfig = () => {
       [baseSepolia.id]: http(),
     },
     connectors: [
-      // Urutan PENTING! Taruh 'injected' (Browser Wallet/Warpcast Provider) di atas.
-      // Di dalam Warpcast, 'injected' akan otomatis mendeteksi dompet internal Warpcast.
+      // 1. WAJIB PERTAMA: Injected (Untuk Warpcast / Browser Wallet)
       injected(), 
       
+      // 2. Coinbase Wallet (Untuk Base App / Chrome)
       coinbaseWallet({
         appName: "Base Dating",
+        preference: "all", 
       }),
+      
+      // 3. MetaMask (Opsional)
+      metaMask(),
     ],
     ssr: true,
   });

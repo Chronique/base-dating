@@ -17,7 +17,17 @@ type FarcasterUser = {
 };
 
 export default function Home() {
-  const [profiles, setProfiles] = useState<FarcasterUser[]>([]);
+  // Mock Data (Simulasi User)
+  const MOCK_PROFILES = Array.from({ length: 60 }).map((_, i) => ({
+    fid: i + 1,
+    username: `user_${i + 1}`,
+    display_name: `User ${i + 1}`,
+    gender: i % 2 === 0 ? 'female' : 'male', // Selang-seling gender
+    pfp_url: `https://robohash.org/${i + 1}?set=set4`,
+    custody_address: "0x1234567890123456789012345678901234567890" // Dummy Address
+  }));
+
+  const [profiles, setProfiles] = useState<any[]>(MOCK_PROFILES);
   const [mounted, setMounted] = useState(false);
   const [context, setContext] = useState<any>();
 
@@ -31,51 +41,38 @@ export default function Home() {
   const { isConnected, address } = useAccount();
   const { connectors, connect } = useConnect();
   
-  // Filter wallets
+  // 👇 FILTER: Munculkan Coinbase, MetaMask, DAN Injected (Warpcast)
   const filteredConnectors = connectors.filter((c) => 
-    c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('metamask')
+    c.id === 'coinbaseWalletSDK' || 
+    c.name.toLowerCase().includes('metamask') ||
+    c.id === 'injected' 
   );
 
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. FETCH & SIMULATE USERS
+  // 1. INIT FARCASTER SDK
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        // Dummy data with Gender & Wallet Address
-        const dummyData = [
-            { fid: 101, username: "alice", display_name: "Alice Wonderland", gender: "female", pfp_url: "https://robohash.org/alice?set=set4", custody_address: "0x1234567890123456789012345678901234567890" },
-            { fid: 102, username: "bob", display_name: "Bob Builder", gender: "male", pfp_url: "https://robohash.org/bob?set=set4", custody_address: "0x2345678901234567890123456789012345678901" },
-            { fid: 103, username: "chara", display_name: "Chara", gender: "female", pfp_url: "https://robohash.org/chara?set=set4", custody_address: "0x3456789012345678901234567890123456789012" },
-            { fid: 104, username: "david", display_name: "David", gender: "male", pfp_url: "https://robohash.org/david?set=set4", custody_address: "0x4567890123456789012345678901234567890123" },
-            { fid: 105, username: "eva", display_name: "Eva", gender: "female", pfp_url: "https://robohash.org/eva?set=set4", custody_address: "0x5678901234567890123456789012345678901234" },
-        ];
-        
-        const formatted: FarcasterUser[] = dummyData.map((u: any) => ({
-            ...u,
-            gender: u.gender as 'male' | 'female'
-        }));
-        setProfiles(formatted);
-      } catch (e) {
-        console.error("Error fetching", e);
-      }
-    };
-
     const load = async () => {
       setMounted(true);
-      fetchUsers();
       try {
         const ctx = await sdk.context;
         setContext(ctx);
         sdk.actions.ready(); 
-      } catch (err) {}
+      } catch (err) {
+        console.log("Running in Browser mode");
+      }
     };
     if (sdk && !mounted) load();
   }, [mounted]);
 
   // 2. FILTER PROFILES (Opposite Gender)
-  const filteredProfiles = profiles.filter(p => p.gender !== myGender);
+  // Mapping ulang profile agar TypeScript aman
+  const formattedProfiles: FarcasterUser[] = profiles.map((p: any) => ({
+      ...p,
+      gender: p.gender as 'male' | 'female'
+  }));
+  const filteredProfiles = formattedProfiles.filter(p => p.gender !== myGender);
 
   // 3. WATCH FOR MATCHES
   useWatchContractEvent({
@@ -103,7 +100,7 @@ export default function Home() {
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
-    // Auto-save at 5 swipes (small batch for testing)
+    // Auto-save at 5 swipes
     if (newAddr.length >= 5) {
         commitSwipes(newAddr, newLikes);
     }
@@ -118,7 +115,6 @@ export default function Home() {
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: DATING_ABI,
       functionName: 'batchSwipe',
-      // 👇 PERBAIKAN: Gunakan 'as any' agar TypeScript tidak rewel
       args: [addrs as any, likes], 
     });
   };
@@ -139,17 +135,25 @@ export default function Home() {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
             <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
-            <p className="text-gray-500 mb-8">Connect wallet to find your soulmate</p>
-            {filteredConnectors.map((connector) => (
-                <button key={connector.uid} onClick={() => connect({ connector })} className="bg-black text-white px-6 py-3 rounded-xl font-bold w-full max-w-xs mb-2">
-                Connect {connector.name}
-                </button>
-            ))}
-             {filteredConnectors.length === 0 && (
-                <button onClick={() => connect({ connector: connectors[0] })} className="bg-black text-white px-6 py-3 rounded-xl font-bold w-full max-w-xs mb-2">
-                Connect Wallet
-                </button>
+            
+            {context?.user ? (
+                <p className="text-gray-600 mb-8">Hi, @{context.user.username}!</p>
+            ) : (
+                <p className="text-gray-500 mb-8">Connect wallet to start</p>
             )}
+
+            <div className="flex flex-col gap-3 w-full max-w-xs">
+                {filteredConnectors.map((connector) => (
+                    <button 
+                        key={connector.uid} 
+                        onClick={() => connect({ connector })} 
+                        className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition"
+                    >
+                        {/* Ubah nama Injected jadi Farcaster Wallet agar user paham */}
+                        Connect {connector.id === 'injected' ? 'Farcaster Wallet' : connector.name}
+                    </button>
+                ))}
+            </div>
         </main>
     );
   }
@@ -159,22 +163,10 @@ export default function Home() {
       return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center animate-in fade-in zoom-in duration-500">
             <h2 className="text-3xl font-bold text-gray-800 mb-8">I am a...</h2>
-            
             <div className="flex flex-col gap-4 w-full max-w-xs">
-                <button 
-                    onClick={() => setMyGender('male')}
-                    className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold hover:bg-blue-200 transition flex items-center justify-center gap-2"
-                >
-                    👨 Man
-                </button>
-                <button 
-                    onClick={() => setMyGender('female')}
-                    className="bg-pink-100 border-2 border-pink-500 text-pink-700 p-6 rounded-2xl text-xl font-bold hover:bg-pink-200 transition flex items-center justify-center gap-2"
-                >
-                    👩 Woman
-                </button>
+                <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👨 Man</button>
+                <button onClick={() => setMyGender('female')} className="bg-pink-100 border-2 border-pink-500 text-pink-700 p-6 rounded-2xl text-xl font-bold">👩 Woman</button>
             </div>
-            <p className="mt-6 text-sm text-gray-400">We will show you the opposite gender.</p>
         </main>
       );
   }
@@ -216,11 +208,8 @@ export default function Home() {
           <div className="text-center">
              <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
              <button onClick={() => setMyGender(null)} className="bg-gray-200 px-4 py-2 rounded-full text-sm mb-4">Change My Gender</button>
-             
              {queueAddr.length > 0 && (
-                 <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-blue-600 text-white px-6 py-2 rounded-full shadow">
-                    Save Pending
-                 </button>
+                 <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-blue-600 text-white px-6 py-2 rounded-full shadow">Save Pending</button>
              )}
           </div>
         )}
