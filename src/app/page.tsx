@@ -17,31 +17,29 @@ type FarcasterUser = {
 };
 
 export default function Home() {
-  // Mock Data (Simulasi User)
+  // Mock Data
   const MOCK_PROFILES = Array.from({ length: 60 }).map((_, i) => ({
     fid: i + 1,
     username: `user_${i + 1}`,
     display_name: `User ${i + 1}`,
-    gender: i % 2 === 0 ? 'female' : 'male', // Selang-seling gender
+    gender: i % 2 === 0 ? 'female' : 'male',
     pfp_url: `https://robohash.org/${i + 1}?set=set4`,
-    custody_address: "0x1234567890123456789012345678901234567890" // Dummy Address
+    custody_address: "0x1234567890123456789012345678901234567890" 
   }));
 
   const [profiles, setProfiles] = useState<any[]>(MOCK_PROFILES);
   const [mounted, setMounted] = useState(false);
   const [context, setContext] = useState<any>();
 
-  // GENDER CHOICE STATE
+  // GENDER & QUEUE STATE
   const [myGender, setMyGender] = useState<'male' | 'female' | null>(null);
-
-  // QUEUE STATE
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
 
   const { isConnected, address } = useAccount();
   const { connectors, connect } = useConnect();
   
-  // 👇 FILTER: Munculkan Coinbase, MetaMask, DAN Injected (Warpcast)
+  // Filter Connectors
   const filteredConnectors = connectors.filter((c) => 
     c.id === 'coinbaseWalletSDK' || 
     c.name.toLowerCase().includes('metamask') ||
@@ -51,30 +49,41 @@ export default function Home() {
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. INIT FARCASTER SDK
+  // 1. INIT SDK & DETEKSI ENVIRONMENT
   useEffect(() => {
     const load = async () => {
       setMounted(true);
       try {
         const ctx = await sdk.context;
         setContext(ctx);
-        sdk.actions.ready(); 
+        sdk.actions.ready();
       } catch (err) {
-        console.log("Running in Browser mode");
+        console.log("Browser mode (Not Farcaster)");
       }
     };
     if (sdk && !mounted) load();
   }, [mounted]);
 
-  // 2. FILTER PROFILES (Opposite Gender)
-  // Mapping ulang profile agar TypeScript aman
+  // 🔥 FITUR BARU: AUTO-CONNECT DI FARCASTER 🔥
+  useEffect(() => {
+    // Jika kita punya context (artinya di Farcaster) DAN belum connect wallet
+    if (context && !isConnected && mounted) {
+        const farcasterWallet = connectors.find(c => c.id === 'injected');
+        if (farcasterWallet) {
+            console.log("Auto-connecting to Farcaster Wallet...");
+            connect({ connector: farcasterWallet });
+        }
+    }
+  }, [context, isConnected, connectors, connect, mounted]);
+
+
+  // 2. FILTER PROFILES & WATCH MATCHES
   const formattedProfiles: FarcasterUser[] = profiles.map((p: any) => ({
       ...p,
       gender: p.gender as 'male' | 'female'
   }));
   const filteredProfiles = formattedProfiles.filter(p => p.gender !== myGender);
 
-  // 3. WATCH FOR MATCHES
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -93,19 +102,14 @@ export default function Home() {
   // --- ACTIONS ---
   const handleSwipe = (liked: boolean) => {
     const currentProfile = filteredProfiles[0];
-    
     const newAddr = [...queueAddr, currentProfile.custody_address];
     const newLikes = [...queueLikes, liked];
-    
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
-    // Auto-save at 5 swipes
     if (newAddr.length >= 5) {
         commitSwipes(newAddr, newLikes);
     }
-    
-    // Remove from UI
     setProfiles((prev) => prev.filter(p => p.fid !== currentProfile.fid));
   };
 
@@ -130,30 +134,33 @@ export default function Home() {
 
   // --- RENDER ---
 
-  // 1. LOGIN
+  // 1. TAMPILAN LOGIN (Hanya muncul jika di Browser Biasa / Auto-connect gagal)
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
-            <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
-            
-            {context?.user ? (
-                <p className="text-gray-600 mb-8">Hi, @{context.user.username}!</p>
+            {/* Tampilkan Loading jika sedang Auto-Connect di Farcaster */}
+            {context ? (
+                <div className="animate-pulse flex flex-col items-center">
+                    <div className="w-16 h-16 bg-blue-200 rounded-full mb-4"></div>
+                    <p className="text-gray-500 font-bold">Connecting to @{context.user.username}...</p>
+                </div>
             ) : (
-                <p className="text-gray-500 mb-8">Connect wallet to start</p>
+                <>
+                    <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
+                    <p className="text-gray-500 mb-8">Connect wallet to start</p>
+                    <div className="flex flex-col gap-3 w-full max-w-xs">
+                        {filteredConnectors.map((connector) => (
+                            <button 
+                                key={connector.uid} 
+                                onClick={() => connect({ connector })} 
+                                className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition"
+                            >
+                                Connect {connector.id === 'injected' ? 'Farcaster Wallet' : connector.name}
+                            </button>
+                        ))}
+                    </div>
+                </>
             )}
-
-            <div className="flex flex-col gap-3 w-full max-w-xs">
-                {filteredConnectors.map((connector) => (
-                    <button 
-                        key={connector.uid} 
-                        onClick={() => connect({ connector })} 
-                        className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition"
-                    >
-                        {/* Ubah nama Injected jadi Farcaster Wallet agar user paham */}
-                        Connect {connector.id === 'injected' ? 'Farcaster Wallet' : connector.name}
-                    </button>
-                ))}
-            </div>
         </main>
     );
   }
@@ -177,11 +184,7 @@ export default function Home() {
       <div className="absolute top-4 w-full px-4 flex justify-between items-center z-20">
          <h1 className="text-xl font-bold text-blue-600">Base Dating</h1>
          <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border">
-            {isPending ? (
-                <span className="text-orange-500 animate-pulse">⏳ Saving...</span>
-            ) : (
-                <span>💾 Pending: {queueAddr.length}/5</span>
-            )}
+            {isPending ? <span className="text-orange-500 animate-pulse">⏳ Saving...</span> : <span>💾 Pending: {queueAddr.length}/5</span>}
          </div>
       </div>
 
