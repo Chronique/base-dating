@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import sdk from "@farcaster/frame-sdk";
-import { useWriteContract, useWaitForTransactionReceipt, useAccount, useConnect, useWatchContractEvent } from "wagmi";
+// 👇 Import useChainId dan useSwitchChain
+import { useWriteContract, useWaitForTransactionReceipt, useAccount, useConnect, useWatchContractEvent, useChainId, useSwitchChain } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
 import { SwipeCard } from "../components/SwipeCard"; 
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
-// Data Types
 type FarcasterUser = {
   fid: number;
   username: string;
@@ -17,7 +18,6 @@ type FarcasterUser = {
 };
 
 export default function Home() {
-  // Mock Data
   const MOCK_PROFILES = Array.from({ length: 60 }).map((_, i) => ({
     fid: i + 1,
     username: `user_${i + 1}`,
@@ -30,8 +30,6 @@ export default function Home() {
   const [profiles, setProfiles] = useState<any[]>(MOCK_PROFILES);
   const [mounted, setMounted] = useState(false);
   const [context, setContext] = useState<any>();
-
-  // GENDER & QUEUE STATE
   const [myGender, setMyGender] = useState<'male' | 'female' | null>(null);
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
@@ -39,17 +37,18 @@ export default function Home() {
   const { isConnected, address } = useAccount();
   const { connectors, connect } = useConnect();
   
-  // Filter Connectors
+  // 👇 LOGIC CEK NETWORK
+  const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
+  const isWrongNetwork = isConnected && chainId !== baseSepolia.id;
+
   const filteredConnectors = connectors.filter((c) => 
-    c.id === 'coinbaseWalletSDK' || 
-    c.name.toLowerCase().includes('metamask') ||
-    c.id === 'injected' 
+    c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('metamask') || c.id === 'injected' 
   );
 
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. INIT SDK & DETEKSI ENVIRONMENT
   useEffect(() => {
     const load = async () => {
       setMounted(true);
@@ -57,31 +56,21 @@ export default function Home() {
         const ctx = await sdk.context;
         setContext(ctx);
         sdk.actions.ready();
-      } catch (err) {
-        console.log("Browser mode (Not Farcaster)");
-      }
+      } catch (err) { console.log("Browser mode"); }
     };
     if (sdk && !mounted) load();
   }, [mounted]);
 
-  // 🔥 FITUR BARU: AUTO-CONNECT DI FARCASTER 🔥
+  // AUTO CONNECT
   useEffect(() => {
-    // Jika kita punya context (artinya di Farcaster) DAN belum connect wallet
     if (context && !isConnected && mounted) {
         const farcasterWallet = connectors.find(c => c.id === 'injected');
-        if (farcasterWallet) {
-            console.log("Auto-connecting to Farcaster Wallet...");
-            connect({ connector: farcasterWallet });
-        }
+        if (farcasterWallet) connect({ connector: farcasterWallet });
     }
   }, [context, isConnected, connectors, connect, mounted]);
 
-
-  // 2. FILTER PROFILES & WATCH MATCHES
-  const formattedProfiles: FarcasterUser[] = profiles.map((p: any) => ({
-      ...p,
-      gender: p.gender as 'male' | 'female'
-  }));
+  // LOGIC LAIN
+  const formattedProfiles: FarcasterUser[] = profiles.map((p: any) => ({ ...p, gender: p.gender as 'male' | 'female' }));
   const filteredProfiles = formattedProfiles.filter(p => p.gender !== myGender);
 
   useWatchContractEvent({
@@ -92,29 +81,22 @@ export default function Home() {
         const myAddr = address?.toLowerCase();
         logs.forEach((log: any) => {
             const { user1, user2 } = log.args;
-            if (user1.toLowerCase() === myAddr || user2.toLowerCase() === myAddr) {
-                alert("💖 IT'S A MATCH! 💖\nYou matched on-chain!");
-            }
+            if (user1.toLowerCase() === myAddr || user2.toLowerCase() === myAddr) alert("💖 IT'S A MATCH! 💖");
         });
     },
   });
 
-  // --- ACTIONS ---
   const handleSwipe = (liked: boolean) => {
     const currentProfile = filteredProfiles[0];
     const newAddr = [...queueAddr, currentProfile.custody_address];
     const newLikes = [...queueLikes, liked];
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
-
-    if (newAddr.length >= 5) {
-        commitSwipes(newAddr, newLikes);
-    }
+    if (newAddr.length >= 5) commitSwipes(newAddr, newLikes);
     setProfiles((prev) => prev.filter(p => p.fid !== currentProfile.fid));
   };
 
   const commitSwipes = (addrs: string[], likes: boolean[]) => {
-    console.log("🚀 Submitting batch...");
     writeContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: DATING_ABI,
@@ -124,37 +106,25 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (isSuccess) {
-      setQueueAddr([]);
-      setQueueLikes([]);
-    }
+    if (isSuccess) { setQueueAddr([]); setQueueLikes([]); }
   }, [isSuccess]);
 
   if (!mounted) return null;
 
-  // --- RENDER ---
-
-  // 1. TAMPILAN LOGIN (Hanya muncul jika di Browser Biasa / Auto-connect gagal)
+  // --- TAMPILAN 1: BELUM CONNECT ---
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
-            {/* Tampilkan Loading jika sedang Auto-Connect di Farcaster */}
             {context ? (
-                <div className="animate-pulse flex flex-col items-center">
-                    <div className="w-16 h-16 bg-blue-200 rounded-full mb-4"></div>
+                <div className="animate-pulse">
                     <p className="text-gray-500 font-bold">Connecting to @{context.user.username}...</p>
                 </div>
             ) : (
                 <>
                     <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
-                    <p className="text-gray-500 mb-8">Connect wallet to start</p>
                     <div className="flex flex-col gap-3 w-full max-w-xs">
                         {filteredConnectors.map((connector) => (
-                            <button 
-                                key={connector.uid} 
-                                onClick={() => connect({ connector })} 
-                                className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition"
-                            >
+                            <button key={connector.uid} onClick={() => connect({ connector })} className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold">
                                 Connect {connector.id === 'injected' ? 'Farcaster Wallet' : connector.name}
                             </button>
                         ))}
@@ -165,10 +135,27 @@ export default function Home() {
     );
   }
 
-  // 2. GENDER SELECTION
+  // --- TAMPILAN 2: SALAH JARINGAN (WRONG NETWORK) ---
+  // Ini yang akan memperbaiki masalah STUCK kamu!
+  if (isWrongNetwork) {
+    return (
+        <main className="min-h-screen flex flex-col items-center justify-center bg-red-50 p-4 text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Wrong Network ⚠️</h2>
+            <p className="text-gray-600 mb-6">Please switch to Base Sepolia (Testnet)</p>
+            <button 
+                onClick={() => switchChain({ chainId: baseSepolia.id })}
+                className="bg-red-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-red-700"
+            >
+                🔀 Switch Network
+            </button>
+        </main>
+    );
+  }
+
+  // --- TAMPILAN 3: PILIH GENDER ---
   if (!myGender) {
       return (
-        <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center animate-in fade-in zoom-in duration-500">
+        <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
             <h2 className="text-3xl font-bold text-gray-800 mb-8">I am a...</h2>
             <div className="flex flex-col gap-4 w-full max-w-xs">
                 <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👨 Man</button>
@@ -178,7 +165,7 @@ export default function Home() {
       );
   }
 
-  // 3. MAIN SWIPE INTERFACE
+  // --- TAMPILAN 4: SWIPE DECK ---
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative">
       <div className="absolute top-4 w-full px-4 flex justify-between items-center z-20">
@@ -194,15 +181,7 @@ export default function Home() {
             return (
               <div key={profile.fid} className={`absolute top-0 left-0 w-full h-full transition-all duration-300 ${index === 0 ? "z-10" : "z-0 scale-95 opacity-50 translate-y-4"}`}>
                 <div className="relative w-full h-full">
-                    <SwipeCard 
-                        profile={{ 
-                            fid: profile.fid, 
-                            username: profile.display_name, 
-                            bio: `${profile.gender === 'male' ? '👨' : '👩'} @${profile.username}`, 
-                            pfpUrl: profile.pfp_url 
-                        }} 
-                        onSwipe={handleSwipe} 
-                    />
+                    <SwipeCard profile={{ ...profile, username: profile.display_name, bio: `${profile.gender === 'male' ? '👨' : '👩'} @${profile.username}`, pfpUrl: profile.pfp_url }} onSwipe={handleSwipe} />
                 </div>
               </div>
             );
