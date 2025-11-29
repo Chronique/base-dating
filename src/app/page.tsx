@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import sdk from "@farcaster/frame-sdk";
 import { useWriteContract, useWaitForTransactionReceipt, useAccount, useConnect, useWatchContractEvent, useChainId, useSwitchChain } from "wagmi";
-import { base } from "wagmi/chains"; // Menggunakan BASE Mainnet
+import { base } from "wagmi/chains"; 
 import { SwipeCard } from "../components/SwipeCard"; 
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
@@ -21,7 +21,6 @@ export default function Home() {
   const [profiles, setProfiles] = useState<FarcasterUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [mounted, setMounted] = useState(false);
-  
   const [context, setContext] = useState<any>();
 
   // GENDER CHOICE STATE
@@ -30,6 +29,7 @@ export default function Home() {
   // QUEUE STATE
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
+  const [isStorageLoaded, setIsStorageLoaded] = useState(false); // Penanda status loading storage
 
   const { isConnected, address } = useAccount();
   const { connectors, connect } = useConnect();
@@ -37,7 +37,7 @@ export default function Home() {
   // Logic Cek Network
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  const isWrongNetwork = isConnected && chainId !== base.id; // Cek Base Mainnet
+  const isWrongNetwork = isConnected && chainId !== base.id;
 
   const filteredConnectors = connectors.filter((c) => 
     c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('metamask') || c.id === 'injected'
@@ -46,12 +46,62 @@ export default function Home() {
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. FETCH & SIMULATE USERS
+  // 1. INIT SDK & LOAD STORAGE (RESTORE DATA)
+  useEffect(() => {
+    const load = async () => {
+      setMounted(true);
+      
+      // RESTORE DARI LOCAL STORAGE HP
+      if (typeof window !== 'undefined') {
+          const savedQueue = localStorage.getItem('baseDatingQueue');
+          const savedGender = localStorage.getItem('baseDatingGender');
+          
+          if (savedQueue) {
+              try {
+                  const parsed = JSON.parse(savedQueue);
+                  if (parsed.addrs && parsed.likes) {
+                      setQueueAddr(parsed.addrs);
+                      setQueueLikes(parsed.likes);
+                      console.log("📂 Data restored:", parsed.addrs.length);
+                  }
+              } catch (e) { console.error("Storage error", e); }
+          }
+
+          if (savedGender) {
+              setMyGender(savedGender as 'male' | 'female');
+          }
+      }
+      setIsStorageLoaded(true); // Tandai sudah selesai load
+
+      try {
+        const ctx = await sdk.context;
+        setContext(ctx);
+        sdk.actions.ready(); 
+      } catch (err) {
+        console.log("Browser Mode");
+      }
+    };
+    if (sdk && !mounted) load();
+  }, [mounted]);
+
+  // 2. AUTO SAVE KE STORAGE HP
+  useEffect(() => {
+    // Hanya save jika storage sudah selesai di-load (mencegah overwrite kosong di awal)
+    if (isStorageLoaded && typeof window !== 'undefined') {
+        const data = { addrs: queueAddr, likes: queueLikes };
+        localStorage.setItem('baseDatingQueue', JSON.stringify(data));
+        
+        if (myGender) {
+            localStorage.setItem('baseDatingGender', myGender);
+        }
+    }
+  }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
+
+  // 3. FETCH USER REAL (Neynar)
   useEffect(() => {
     const fetchUsers = async () => {
       setIsLoadingUsers(true);
       try {
-        // Ambil 50 user acak dari range FID 1 - 50000
         const randomStart = Math.floor(Math.random() * 20000) + 1;
         const randomFids = Array.from({ length: 50 }, (_, i) => randomStart + i).join(',');
 
@@ -78,7 +128,11 @@ export default function Home() {
             });
 
             const cleanUsers = realUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address !== '0x0000000000000000000000000000000000000000');
-            setProfiles(cleanUsers);
+            
+            // Filter Address yang SUDAH ada di antrian (biar gak muncul lagi)
+            const uniqueUsers = cleanUsers.filter(u => !queueAddr.includes(u.custody_address));
+            
+            setProfiles(uniqueUsers);
         }
       } catch (e) {
         console.error("Error fetching", e);
@@ -87,21 +141,10 @@ export default function Home() {
       }
     };
 
-    const load = async () => {
-      setMounted(true);
-      if (profiles.length === 0) fetchUsers();
-      try {
-        const ctx = await sdk.context;
-        setContext(ctx);
-        sdk.actions.ready(); 
-      } catch (err) {
-        console.log("Browser Mode");
-      }
-    };
-    if (sdk && !mounted) load();
-  }, [mounted]);
+    if (mounted && profiles.length === 0) fetchUsers();
+  }, [mounted, profiles.length]); // Dependency profile length agar fetch kalau habis
 
-  // 2. AUTO CONNECT (Farcaster)
+  // 4. AUTO CONNECT (Farcaster)
   useEffect(() => {
     if (context && !isConnected && mounted) {
         const farcasterWallet = connectors.find(c => c.id === 'injected');
@@ -111,10 +154,10 @@ export default function Home() {
     }
   }, [context, isConnected, connectors, connect, mounted]);
 
-  // 3. FILTER PROFILES
+  // 5. FILTER PROFILES
   const filteredProfiles = profiles.filter(p => p.gender !== myGender);
 
-  // 4. WATCH FOR MATCHES
+  // 6. WATCH FOR MATCHES
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -132,7 +175,6 @@ export default function Home() {
 
   // --- ACTIONS ---
   const handleSwipe = (liked: boolean) => {
-    // Cek jika habis
     if (filteredProfiles.length === 0) return;
     const currentProfile = filteredProfiles[0];
     
@@ -142,7 +184,7 @@ export default function Home() {
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
-    // 👇 UPDATE DISINI: Auto-save hanya jika sudah 50
+    // Auto-save at 50 swipes
     if (newAddr.length >= 50) {
         commitSwipes(newAddr, newLikes);
     }
@@ -160,10 +202,12 @@ export default function Home() {
     });
   };
 
+  // Bersihkan antrian & storage setelah sukses
   useEffect(() => {
     if (isSuccess) {
       setQueueAddr([]);
       setQueueLikes([]);
+      localStorage.removeItem('baseDatingQueue'); // Hapus data di HP
       alert("✅ 50 Swipes Saved On-Chain!");
     }
   }, [isSuccess]);
@@ -213,11 +257,11 @@ export default function Home() {
   // C. GENDER SELECTION
   if (!myGender) {
       return (
-        <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center animate-in fade-in zoom-in duration-500">
+        <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
             <h2 className="text-3xl font-bold text-gray-800 mb-8">I am a...</h2>
             <div className="flex flex-col gap-4 w-full max-w-xs">
-                <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold hover:bg-blue-200 transition flex items-center justify-center gap-2">👨 Man</button>
-                <button onClick={() => setMyGender('female')} className="bg-pink-100 border-2 border-pink-500 text-pink-700 p-6 rounded-2xl text-xl font-bold hover:bg-pink-200 transition flex items-center justify-center gap-2">👩 Woman</button>
+                <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👨 Man</button>
+                <button onClick={() => setMyGender('female')} className="bg-pink-100 border-2 border-pink-500 text-pink-700 p-6 rounded-2xl text-xl font-bold">👩 Woman</button>
             </div>
         </main>
       );
@@ -232,7 +276,7 @@ export default function Home() {
             {isPending ? (
                 <span className="text-orange-500 animate-pulse">⏳ Saving...</span>
             ) : (
-                // 👇 UPDATE DISINI: Tampilkan limit 50
+                // Tampilkan jumlah swipe yang tersimpan
                 <span>💾 Pending: {queueAddr.length}/50</span>
             )}
          </div>
@@ -267,7 +311,6 @@ export default function Home() {
              <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
              <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4">Refresh Users</button>
              
-             {/* Tombol Simpan Manual jika user berhenti sebelum 50 */}
              {queueAddr.length > 0 && (
                  <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow">
                     Save Pending ({queueAddr.length})
