@@ -152,8 +152,8 @@ export function BasePay() {
   const [paymentState, setPaymentState] = useState<PaymentState>({ status: 'idle', message: '' });
   const [amount, setAmount] = useState("5.00");
   
-  // dylsteck.base.eth
-  const recipient = "0x8342A48694A74044116F330db5050a267b28dD85";
+  // 👇 ALAMAT WALLET TUJUAN (KAMU)
+  const recipient = "0x4fba95e4772be6d37a0c931D00570Fe2c9675524";
 
   const handlePay = async () => {
     try {
@@ -167,7 +167,7 @@ export function BasePay() {
       const result = await pay({
         amount: amount,
         to: recipient,
-        testnet: false
+        testnet: false // Mainnet
       });
 
       const payResult = result as PayResult;
@@ -280,12 +280,13 @@ export function BasePay() {
         <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
           <div className="text-sm font-medium text-primary mb-1">Payment Recipient</div>
           <div className="font-mono text-xs text-muted-foreground mb-1">{recipient}</div>
-          <div className="text-xs text-primary/70">dylsteck.base.eth</div>
+          <div className="text-xs text-primary/70">Your Wallet</div>
         </div>
 
         <div className={isProcessing ? 'opacity-50 pointer-events-none' : ''}>
           <BasePayButton
-            colorScheme="light"
+            // 👇 KEMBALI KE SINI (Hapus mode, pakai colorScheme atau hapus saja)
+            // Saya hapus propertinya agar menggunakan default (biasanya otomatis detect tema)
             onClick={handlePay}
           />
           <div className="text-xs text-muted-foreground mt-2 text-center">
