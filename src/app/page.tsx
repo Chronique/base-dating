@@ -15,18 +15,20 @@ type FarcasterUser = {
   custody_address: string;
   display_name: string;
   gender: 'male' | 'female';
-  // 👇 Tambahkan ini biar gak error 'Property type does not exist'
-  type?: 'farcaster' | 'base'; 
 };
 
 export default function Home() {
   const [profiles, setProfiles] = useState<FarcasterUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [mounted, setMounted] = useState(false);
+  
+  // Context Farcaster
   const [context, setContext] = useState<any>();
 
-  // GENDER & QUEUE STATE
+  // GENDER CHOICE STATE
   const [myGender, setMyGender] = useState<'male' | 'female' | null>(null);
+
+  // QUEUE STATE
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
@@ -34,9 +36,14 @@ export default function Home() {
   // Wagmi Hooks
   const { isConnected, address } = useAccount();
   const { connectors, connect, error: connectError } = useConnect();
+  
+  // CEK BALANCE
   const { data: balance } = useBalance({ address });
+
+  // Ref untuk Auto Connect
   const hasAttemptedAutoConnect = useRef(false);
 
+  // Logic Cek Network
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const isWrongNetwork = isConnected && chainId !== base.id;
@@ -48,25 +55,7 @@ export default function Home() {
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // --- HELPER: GENERATE RANDOM BASE USER ---
-  const generateBaseUsers = (count: number): FarcasterUser[] => {
-    return Array.from({ length: count }).map((_, i) => {
-        const randomAddr = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
-        const isMale = Math.random() > 0.5;
-        
-        return {
-            fid: 999000 + i, 
-            username: `0x...${randomAddr.slice(-4)}`,
-            display_name: `Base User ${i + 1}`,
-            pfp_url: `https://api.dicebear.com/9.x/identicon/svg?seed=${randomAddr}`,
-            custody_address: randomAddr,
-            gender: isMale ? 'male' : 'female',
-            type: 'base' // Penanda user base
-        };
-    });
-  };
-
-  // 1. INIT & LOAD DATA
+  // 1. INIT, RESTORE DATA & FETCH USERS
   useEffect(() => {
     const initApp = async () => {
       setMounted(true);
@@ -75,6 +64,7 @@ export default function Home() {
       if (typeof window !== 'undefined') {
           const savedQueue = localStorage.getItem('baseDatingQueue');
           const savedGender = localStorage.getItem('baseDatingGender');
+          
           if (savedQueue) {
               try {
                   const parsed = JSON.parse(savedQueue);
@@ -88,12 +78,11 @@ export default function Home() {
       }
       setIsStorageLoaded(true);
 
-      // B. Fetch Users (Hybrid)
+      // B. Fetch Users
       setIsLoadingUsers(true);
       try {
-        // 1. Ambil User Farcaster
-        const randomStart = Math.floor(Math.random() * 10000) + 1;
-        const randomFids = Array.from({ length: 30 }, (_, i) => randomStart + i).join(',');
+        const randomStart = Math.floor(Math.random() * 20000) + 1;
+        const randomFids = Array.from({ length: 50 }, (_, i) => randomStart + i).join(',');
 
         const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${randomFids}`, {
             headers: {
@@ -103,48 +92,33 @@ export default function Home() {
         });
 
         const data = await response.json();
-        let combinedUsers: FarcasterUser[] = [];
-
         if (data.users) {
-            const fcUsers = data.users.map((u: any, index: number) => ({
-                fid: u.fid,
-                username: u.username,
-                display_name: u.display_name,
-                pfp_url: u.pfp_url,
-                custody_address: u.verified_addresses.eth_addresses[0] || u.custody_address,
-                gender: index % 2 === 0 ? 'female' : 'male',
-                type: 'farcaster' // Penanda user farcaster
-            }));
-            combinedUsers = [...fcUsers];
+            const realUsers: FarcasterUser[] = data.users.map((u: any, index: number) => {
+                const wallet = u.verified_addresses.eth_addresses[0] || u.custody_address;
+                return {
+                    fid: u.fid,
+                    username: u.username,
+                    display_name: u.display_name,
+                    pfp_url: u.pfp_url,
+                    custody_address: wallet,
+                    gender: index % 2 === 0 ? 'female' : 'male' 
+                };
+            });
+            const cleanUsers = realUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address !== '0x0000000000000000000000000000000000000000');
+            setProfiles(cleanUsers);
         }
-
-        // 2. Tambah User Base
-        const baseUsers = generateBaseUsers(20);
-        combinedUsers = [...combinedUsers, ...baseUsers];
-
-        // 3. Shuffle & Clean
-        combinedUsers.sort(() => Math.random() - 0.5);
-        const cleanUsers = combinedUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address.startsWith('0x'));
-        
-        // Cek duplicate dengan queue
-        // Note: queueAddr di sini masih initial state, filter real-time ada di render
-        setProfiles(cleanUsers);
-
       } catch (e) {
         console.error("Error fetching", e);
-        setProfiles(generateBaseUsers(50)); // Fallback full base users
       } finally {
         setIsLoadingUsers(false);
       }
 
-      // C. Farcaster Context
+      // C. Init Farcaster SDK
       try {
         const ctx = await sdk.context;
         setContext(ctx);
         sdk.actions.ready(); 
-      } catch (err) {
-        console.log("Browser Mode");
-      }
+      } catch (err) {}
     };
 
     if (sdk && !mounted) initApp();
@@ -171,11 +145,11 @@ export default function Home() {
     }
   }, [mounted, context, isConnected, connectors, connect]);
 
-  // 4. FILTER PROFILES
+  // 4. FILTER
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
     .filter(p => !queueAddr.includes(p.custody_address));
 
-  // 5. MATCH WATCHER
+  // 5. MATCH EVENT
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -202,11 +176,12 @@ export default function Home() {
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
+    // 👇 UBAH DISINI: Auto-save setiap 5 swipe
     if (newAddr.length >= 5) {
         commitSwipes(newAddr, newLikes);
     }
     
-    setProfiles((prev) => prev.filter(p => p.custody_address !== currentProfile.custody_address));
+    setProfiles((prev) => prev.filter(p => p.fid !== currentProfile.fid));
   };
 
   const commitSwipes = (addrs: string[], likes: boolean[]) => {
@@ -224,7 +199,7 @@ export default function Home() {
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
-      alert("✅ 50 Swipes Saved On-Chain!");
+      alert("✅ 5 Swipes Saved On-Chain!");
     }
   }, [isSuccess]);
 
@@ -245,7 +220,6 @@ export default function Home() {
                 <>
                     <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
                     <p className="text-gray-500 mb-8">Connect wallet to find your soulmate</p>
-                    {connectError && <p className="text-red-500 text-xs mb-4">{connectError.message}</p>}
                     <div className="flex flex-col gap-3 w-full max-w-xs">
                         {filteredConnectors.map((connector) => (
                             <button key={connector.uid} onClick={() => connect({ connector })} className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
@@ -288,12 +262,15 @@ export default function Home() {
   // D. MAIN SWIPE
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative">
-      {/* BALANCE & STATUS */}
+      
+      {/* BALANCE INDICATOR */}
       <div className="absolute top-4 left-4 z-50">
          <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm">
-            💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : '...'}
+            💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : 'Loading...'}
          </div>
       </div>
+
+      {/* STATUS SWIPE (UPDATED: Show /5) */}
       <div className="absolute top-4 right-4 z-20">
          <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border">
             {isPending ? <span className="text-orange-500 animate-pulse">⏳ Saving...</span> : <span>💾 {queueAddr.length}/5</span>}
@@ -304,7 +281,7 @@ export default function Home() {
         {isLoadingUsers && filteredProfiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4 text-gray-500">Finding People...</p>
+                <p className="mt-4 text-gray-500">Finding Real Users...</p>
             </div>
         ) : filteredProfiles.length > 0 ? (
           filteredProfiles.map((profile, index) => {
@@ -315,8 +292,7 @@ export default function Home() {
                         profile={{ 
                             fid: profile.fid, 
                             username: profile.display_name, 
-                            // Tampilkan Icon Farcaster vs Base
-                            bio: `${profile.type === 'base' ? '🔵 Base User' : '🟣 Farcaster'} | ${profile.gender === 'male' ? '👨' : '👩'}`, 
+                            bio: `${profile.gender === 'male' ? '👨' : '👩'} @${profile.username}`, 
                             pfpUrl: profile.pfp_url 
                         }} 
                         onSwipe={handleSwipe} 
@@ -329,6 +305,7 @@ export default function Home() {
           <div className="text-center">
              <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
              <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4">Refresh Users</button>
+             
              {queueAddr.length > 0 && (
                  <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow">
                     Save Pending ({queueAddr.length})
