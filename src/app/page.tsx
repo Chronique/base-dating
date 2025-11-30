@@ -379,7 +379,7 @@ export default function Home() {
                 {isPending ? (
                     <>⏳ Processing...</>
                 ) : (
-                    queueAddr.length >= 50 ? "⚠️ LIMIT REACHED: SUBMIT NOW" : `Save Progress (${queueAddr.length})`
+                    queueAddr.length >= 50 ? "MORE SWIPE? PAY NOW (ONLY GAS)" : `Save Progress (${queueAddr.length})`
                 )}
             </button>
           </div>
