@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, PanInfo, useMotionValue, useTransform } from "framer-motion";
+import { motion, PanInfo, useMotionValue, useTransform, useAnimation } from "framer-motion";
 import { useName } from "@coinbase/onchainkit/identity"; 
 import { base } from "wagmi/chains";
 
@@ -16,23 +16,35 @@ type Profile = {
 };
 
 export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (liked: boolean) => void }) {
+  // Controls untuk mengatur animasi secara manual
+  const controls = useAnimation();
+  
   const x = useMotionValue(0);
-  // Rotasi dikurangi sedikit biar tidak terlalu liar
-  const rotate = useTransform(x, [-200, 200], [-15, 15]);
+  const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
-  // Opacity Stamp (Muncul lebih smooth)
-  const likeOpacity = useTransform(x, [40, 150], [0, 1]);
-  const passOpacity = useTransform(x, [-150, -40], [1, 0]);
+  // Opacity Stamp (Hanya muncul teks, tanpa overlay warna biar ringan)
+  const likeOpacity = useTransform(x, [20, 150], [0, 1]);
+  const passOpacity = useTransform(x, [-150, -20], [1, 0]);
 
   const { data: basename } = useName({ 
     address: profile.custody_address as `0x${string}`,
     chain: base, 
   });
 
-  const handleDragEnd = (event: any, info: PanInfo) => {
-    if (info.offset.x > 100) {
+  const handleDragEnd = async (event: any, info: PanInfo) => {
+    const offset = info.offset.x;
+    const velocity = info.velocity.x;
+
+    // Jika digeser cukup jauh atau dilempar dengan cepat
+    if (offset > 100 || velocity > 500) {
+      // 1. LIKE: Terbangkan kartu ke KANAN luar layar
+      await controls.start({ x: 500, opacity: 0, transition: { duration: 0.2 } });
+      // 2. Baru hapus data
       onSwipe(true);
-    } else if (info.offset.x < -100) {
+    } else if (offset < -100 || velocity < -500) {
+      // 1. PASS: Terbangkan kartu ke KIRI luar layar
+      await controls.start({ x: -500, opacity: 0, transition: { duration: 0.2 } });
+      // 2. Baru hapus data
       onSwipe(false);
     }
   };
@@ -41,41 +53,32 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
 
   return (
     <motion.div
-      style={{ x, rotate }}
       drag="x"
+      animate={controls} // Sambungkan kontrol animasi
+      style={{ x, rotate }}
       dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.6} // Sedikit pantulan biar natural
       onDragEnd={handleDragEnd}
-      // 🔥 FIX GLITCH: Tambahkan 'will-change-transform' dan 'backface-hidden'
-      // Ini memaksa browser pakai GPU, menghilangkan kedipan merah/hijau
-      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col items-center overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform transform-gpu"
+      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col items-center overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
     >
-      <div className="w-full h-3/4 bg-gray-100 relative isolate">
+      <div className="w-full h-3/4 bg-gray-200 relative">
         <img 
             src={profile.pfpUrl} 
             alt={displayName} 
             className="w-full h-full object-cover pointer-events-none" 
-            loading="eager" // Paksa load gambar duluan
         />
-        
+
         {/* BADGE TIPE USER */}
         <div className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20">
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
 
-        {/* INDIKATOR LIKE */}
-        <motion.div 
-            style={{ opacity: likeOpacity }} 
-            className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/90 z-30 tracking-widest text-2xl shadow-lg"
-        >
+        {/* STAMP LIKE (Hijau) */}
+        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-30 text-2xl tracking-widest">
             LIKE
         </motion.div>
 
-        {/* INDIKATOR PASS */}
-        <motion.div 
-            style={{ opacity: passOpacity }} 
-            className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/90 z-30 tracking-widest text-2xl shadow-lg"
-        >
+        {/* STAMP NOPE (Merah) */}
+        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-30 text-2xl tracking-widest">
             NOPE
         </motion.div>
       </div>
