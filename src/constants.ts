@@ -1,5 +1,5 @@
 // src/constants.ts
-export const CONTRACT_ADDRESS = "0x3C5F31E167bA64Bc693B4d32517e2f81d61Bc64A"; 
+export const CONTRACT_ADDRESS = "0x66e96ceF7d5EB4016739C34d49FB633276aB075a"; 
 
 export const DATING_ABI = [
   {
