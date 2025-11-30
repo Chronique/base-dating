@@ -16,7 +16,6 @@ import { base } from "wagmi/chains";
 import { SwipeCard } from "../components/SwipeCard"; 
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
-// --- TIPE DATA ---
 type FarcasterUser = {
   fid: number;
   username: string;
@@ -27,33 +26,17 @@ type FarcasterUser = {
   type: 'farcaster' | 'base';
 };
 
-// --- KOMPONEN MODAL MATCH ---
 function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
-    // Link untuk membuka chat XMTP (Converse / Coinbase Wallet)
     const chatLink = `https://xmttp.chat/dm/${partner}`; 
-    
     return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-in fade-in zoom-in">
-            <div className="bg-white p-6 rounded-3xl text-center max-w-xs mx-4">
-                <div className="text-6xl mb-4">💖</div>
-                <h2 className="text-2xl font-bold text-pink-600 mb-2">It's a Match!</h2>
-                <p className="text-gray-500 mb-6">You and {partner.slice(0,6)}... liked each other!</p>
-                
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-in fade-in zoom-in p-4">
+            <div className="bg-white p-6 rounded-3xl text-center max-w-sm w-full shadow-2xl relative overflow-hidden">
+                <div className="text-6xl mb-4 animate-bounce">💖</div>
+                <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600 mb-2">IT'S A MATCH!</h2>
+                <p className="text-gray-500 mb-6 text-sm">You matched with <span className="font-mono bg-gray-100 px-1 rounded">{partner.slice(0,6)}...</span></p>
                 <div className="flex flex-col gap-3">
-                    <a 
-                        href={chatLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="bg-blue-600 text-white py-3 px-6 rounded-xl font-bold hover:bg-blue-700 transition"
-                    >
-                        💬 Chat on XMTP
-                    </a>
-                    <button 
-                        onClick={onClose}
-                        className="bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-bold"
-                    >
-                        Keep Swiping
-                    </button>
+                    <a href={chatLink} target="_blank" rel="noreferrer" className="bg-blue-600 text-white py-3 px-6 rounded-xl font-bold shadow-lg">💬 Chat on XMTP</a>
+                    <button onClick={onClose} className="bg-gray-100 text-gray-700 py-3 px-6 rounded-xl font-bold">Keep Swiping</button>
                 </div>
             </div>
         </div>
@@ -62,28 +45,22 @@ function MatchModal({ partner, onClose }: { partner: string, onClose: () => void
 
 export default function Home() {
   const [profiles, setProfiles] = useState<FarcasterUser[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true); // Default true biar skeleton muncul
   const [mounted, setMounted] = useState(false);
   const [context, setContext] = useState<any>();
 
-  // STATE PREFERENSI & ANTRIAN
   const [myGender, setMyGender] = useState<'male' | 'female' | null>(null);
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
-  
-  // STATE MATCH (Untuk menampilkan modal)
   const [matchPartner, setMatchPartner] = useState<string | null>(null);
 
-  // WAGMI HOOKS
   const { isConnected, address } = useAccount();
   const { connectors, connect, error: connectError } = useConnect();
   const { data: balance } = useBalance({ address });
-  
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const isWrongNetwork = isConnected && chainId !== base.id;
-
   const hasAttemptedAutoConnect = useRef(false);
 
   const filteredConnectors = connectors.filter((c) => 
@@ -96,42 +73,58 @@ export default function Home() {
   const generateBaseUsers = (count: number): FarcasterUser[] => {
     return Array.from({ length: count }).map((_, i) => {
         const randomAddr = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
-        const isMale = Math.random() > 0.5;
         return {
             fid: 900000 + i,
-            username: `${randomAddr.slice(0, 6)}...${randomAddr.slice(-4)}`,
+            username: `${randomAddr.slice(0, 6)}...`,
             display_name: `Base User ${Math.floor(Math.random() * 1000)}`,
             pfp_url: `https://api.dicebear.com/9.x/identicon/svg?seed=${randomAddr}`,
             custody_address: randomAddr,
-            gender: isMale ? 'male' : 'female',
+            gender: Math.random() > 0.5 ? 'male' : 'female',
             type: 'base'
         };
     });
   };
 
-  // 1. INIT APLIKASI
+  // --- 1. SUPER FAST INIT (Prioritas Utama) ---
   useEffect(() => {
-    const initApp = async () => {
+    const initFast = async () => {
       setMounted(true);
-
+      
+      // A. Restore Data (Cepat, Sync)
       if (typeof window !== 'undefined') {
           const savedQueue = localStorage.getItem('baseDatingQueue');
           const savedGender = localStorage.getItem('baseDatingGender');
           if (savedQueue) {
               try {
                   const parsed = JSON.parse(savedQueue);
-                  if (parsed.addrs && Array.isArray(parsed.addrs)) {
-                      setQueueAddr(parsed.addrs);
-                      setQueueLikes(parsed.likes);
-                  }
+                  if (parsed.addrs) { setQueueAddr(parsed.addrs); setQueueLikes(parsed.likes); }
               } catch (e) {}
           }
           if (savedGender) setMyGender(savedGender as 'male' | 'female');
       }
       setIsStorageLoaded(true);
 
-      setIsLoadingUsers(true);
+      // B. Init Farcaster SDK (Langsung panggil, jangan tunggu fetch user)
       try {
+        const ctx = await sdk.context;
+        setContext(ctx);
+        sdk.actions.ready(); // 🔥 KUNCI: Bilang ready secepat mungkin!
+        console.log("Farcaster Ready");
+      } catch (err) {
+        console.log("Browser Mode");
+      }
+    };
+
+    initFast();
+  }, []);
+
+  // --- 2. FETCH USERS (Background Process) ---
+  useEffect(() => {
+    const fetchUsersBg = async () => {
+      if (!mounted) return;
+      
+      try {
+        // Ambil data (agak lama, biarkan berjalan di background)
         const randomStart = Math.floor(Math.random() * 10000) + 1;
         const randomFids = Array.from({ length: 30 }, (_, i) => randomStart + i).join(',');
 
@@ -161,29 +154,20 @@ export default function Home() {
         const baseUsers = generateBaseUsers(30);
         combinedUsers = [...combinedUsers, ...baseUsers];
         combinedUsers.sort(() => Math.random() - 0.5);
-        const cleanUsers = combinedUsers.filter(u => 
-            u.pfp_url && u.custody_address && u.custody_address.startsWith('0x')
-        );
+        const cleanUsers = combinedUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address.startsWith('0x'));
         
         setProfiles(cleanUsers);
-
       } catch (e) {
-        setProfiles(generateBaseUsers(50));
+        setProfiles(generateBaseUsers(50)); // Fallback
       } finally {
         setIsLoadingUsers(false);
       }
-
-      try {
-        const ctx = await sdk.context;
-        setContext(ctx);
-        sdk.actions.ready(); 
-      } catch (err) {}
     };
 
-    if (sdk && !mounted) initApp();
+    if (mounted) fetchUsersBg();
   }, [mounted]);
 
-  // 2. AUTO SAVE
+  // --- 3. AUTO SAVE ---
   useEffect(() => {
     if (isStorageLoaded && typeof window !== 'undefined') {
         const data = { addrs: queueAddr, likes: queueLikes };
@@ -192,22 +176,25 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 3. AUTO CONNECT
+  // --- 4. AUTO CONNECT (Optimized) ---
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
-        const timer = setTimeout(() => {
+        
+        // Coba connect segera setelah mounted
+        setTimeout(() => {
             const farcasterWallet = connectors.find(c => c.id === 'injected');
-            if (farcasterWallet) connect({ connector: farcasterWallet });
-        }, 700);
-        return () => clearTimeout(timer);
+            if (farcasterWallet) {
+                console.log("🔄 Auto-connecting...");
+                connect({ connector: farcasterWallet });
+            }
+        }, 500); // Delay dikit biar aman
     }
   }, [mounted, context, isConnected, connectors, connect]);
 
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
     .filter(p => !queueAddr.includes(p.custody_address));
 
-  // 🔥 4. MATCH WATCHER & NOTIFICATION 🔥
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -216,20 +203,9 @@ export default function Home() {
         const myAddr = address?.toLowerCase();
         logs.forEach((log: any) => {
             const { user1, user2 } = log.args;
-            
-            // Cek apakah ini match saya
             if (user1.toLowerCase() === myAddr || user2.toLowerCase() === myAddr) {
-                // Tentukan siapa partnernya
-                const partnerAddr = user1.toLowerCase() === myAddr ? user2 : user1;
-                
-                // 1. Tampilkan Modal Chat
-                setMatchPartner(partnerAddr);
-
-                // 2. Kirim Notifikasi (Simulasi Log dulu, perlu server utk real push)
-                if (sdk && context) {
-                    // Jika di farcaster, kita bisa panggil API notifikasi
-                    console.log(`🔔 Sending notification: Match with ${partnerAddr}`);
-                }
+                const partner = user1.toLowerCase() === myAddr ? user2 : user1;
+                setMatchPartner(partner);
             }
         });
     },
@@ -238,17 +214,14 @@ export default function Home() {
   const handleSwipe = (liked: boolean) => {
     if (filteredProfiles.length === 0) return;
     const currentProfile = filteredProfiles[0];
-    
     const newAddr = [...queueAddr, currentProfile.custody_address];
     const newLikes = [...queueLikes, liked];
-    
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
     if (newAddr.length >= 50) {
         commitSwipes(newAddr, newLikes);
     }
-    
     setProfiles((prev) => prev.filter(p => p.custody_address !== currentProfile.custody_address));
   };
 
@@ -267,7 +240,7 @@ export default function Home() {
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
-      alert("✅ 50 Swipes Successfully Saved On-Chain!");
+      alert("✅ 50 Swipes Saved On-Chain!");
     }
   }, [isSuccess]);
 
@@ -282,6 +255,7 @@ export default function Home() {
                 <div className="animate-pulse flex flex-col items-center">
                     <div className="w-16 h-16 bg-gray-200 rounded-full mb-4 animate-spin"></div>
                     <p className="text-gray-500 font-bold">Connecting to @{context.user.username}...</p>
+                    <p className="text-xs text-gray-400 mt-2">Loading profiles in background...</p>
                 </div>
             ) : (
                 <>
@@ -325,17 +299,9 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative">
-      
-      {/* 1. MODAL MATCH (Muncul jika ada match) */}
-      {matchPartner && (
-          <MatchModal 
-            partner={matchPartner} 
-            onClose={() => setMatchPartner(null)} 
-          />
-      )}
+    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
-      {/* 2. BALANCE & STATUS */}
       <div className="absolute top-4 left-4 z-20">
          <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm shadow-md">
             💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : '...'}
@@ -343,36 +309,29 @@ export default function Home() {
       </div>
       <div className="absolute top-4 right-4 z-20">
          <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2">
-            {isPending ? (
-                <>
-                    <span className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></span>
-                    <span className="text-orange-500 font-bold">Saving...</span>
-                </>
-            ) : (
-                <span>💾 {queueAddr.length}/50</span>
-            )}
+            {isPending ? <span className="text-orange-500 animate-pulse">⏳ Saving...</span> : <span>💾 {queueAddr.length}/50</span>}
          </div>
       </div>
 
       <div className="relative w-72 h-96 mt-8">
+        {/* Loading State yang lebih baik */}
         {isLoadingUsers && filteredProfiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4 text-gray-500">Finding Real Users...</p>
+                <p className="mt-4 text-gray-500 animate-pulse">Finding people near blocks...</p>
             </div>
         ) : filteredProfiles.length > 0 ? (
           filteredProfiles.map((profile, index) => {
             return (
               <div key={profile.custody_address} className={`absolute top-0 left-0 w-full h-full transition-all duration-300 ${index === 0 ? "z-10" : "z-0 scale-95 opacity-50 translate-y-4"}`}>
                 <div className="relative w-full h-full">
-                    {/* 👇 Update SwipeCard untuk support Basename */}
                     <SwipeCard 
                         profile={{ 
                             fid: profile.fid, 
                             username: profile.display_name, 
-                            bio: `${profile.type === 'base' ? '🔵 Base User' : '🟣 Farcaster'} | ${profile.gender === 'male' ? '👨' : '👩'}`, 
+                            bio: `${profile.type === 'base' ? '🔵 Base' : '🟣 Farcaster'} | ${profile.gender === 'male' ? '👨' : '👩'}`, 
                             pfpUrl: profile.pfp_url,
-                            custody_address: profile.custody_address, // Kirim address untuk Basename lookup
+                            custody_address: profile.custody_address,
                             gender: profile.gender,
                             type: profile.type
                         }} 
@@ -385,7 +344,7 @@ export default function Home() {
         ) : (
           <div className="text-center">
              <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
-             <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4 shadow hover:bg-blue-600 transition">Refresh Users</button>
+             <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4 shadow">Refresh Users</button>
              {queueAddr.length > 0 && (
                  <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow hover:bg-green-700 transition animate-bounce">
                     Save Pending ({queueAddr.length})
