@@ -54,9 +54,6 @@ export default function Home() {
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
   const [matchPartner, setMatchPartner] = useState<string | null>(null);
-  
-  // 🔥 STATE BARU UNTUK RESET KARTU 🔥
-  const [resetKey, setResetKey] = useState(0);
 
   const { isConnected, address } = useAccount();
   const { connectors, connect, error: connectError } = useConnect();
@@ -73,7 +70,6 @@ export default function Home() {
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // Helper Generate User
   const generateBaseUsers = (count: number): FarcasterUser[] => {
     return Array.from({ length: count }).map((_, i) => {
         const randomAddr = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
@@ -184,8 +180,6 @@ export default function Home() {
   }, [mounted, context, isConnected, connectors, connect]);
 
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
-    // Filter: Jangan tampilkan user yg sudah ada di antrian, KECUALI jika antrian penuh (50)
-    // Ini supaya kartu ke-50 tetap muncul kalau belum sukses dikirim
     .filter(p => queueAddr.length < 50 ? !queueAddr.includes(p.custody_address) : true);
 
   useWatchContractEvent({
@@ -204,12 +198,11 @@ export default function Home() {
     },
   });
 
-  // 🔥 LOGIKA SWIPE BARU 🔥
+  // LOGIC SWIPE
   const handleSwipe = (liked: boolean) => {
-    // 1. Cek apakah antrian sudah penuh (Misal user swipe lagi pas error)
+    // 1. JANGAN TAMBAH ANTRIAN JIKA SUDAH 50
     if (queueAddr.length >= 50) {
-        // Jangan tambah antrian, langsung coba kirim ulang (Retry)
-        commitSwipes(queueAddr, queueLikes);
+        commitSwipes(queueAddr, queueLikes); // Retry kirim
         return; 
     }
 
@@ -222,23 +215,16 @@ export default function Home() {
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
-    // 2. Cek Limit 50
     if (newAddr.length >= 50) {
-        // Trigger Transaksi
         commitSwipes(newAddr, newLikes);
-        
-        // 🔥 KUNCI: Paksa kartu reset (muncul lagi) dengan ganti Key
-        setResetKey(prev => prev + 1); 
-        
-        // Jangan hapus profil dari state 'profiles', biar dia tetap di index 0
-        return; 
+        return; // Tahan kartu ke-50
     }
     
-    // 3. Jika belum 50, hapus seperti biasa
     setProfiles((prev) => prev.filter(p => p.custody_address !== currentProfile.custody_address));
   };
 
   const commitSwipes = (addrs: string[], likes: boolean[]) => {
+    console.log("🚀 Submitting 50 swipes...");
     writeContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: DATING_ABI,
@@ -247,49 +233,52 @@ export default function Home() {
     });
   };
 
-  // 🔥 HAPUS KARTU HANYA JIKA SUKSES 🔥
   useEffect(() => {
     if (isSuccess) {
-      // Reset Antrian
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
-      
-      // Hapus kartu ke-50 dari layar (agar user bisa lanjut)
-      setProfiles((prev) => {
-          if (prev.length > 0) return prev.slice(1); 
-          return prev;
-      });
-      
+      setProfiles((prev) => prev.length > 0 ? prev.slice(1) : prev);
       alert("✅ 50 Swipes Saved! Lanjut Swipe.");
     }
   }, [isSuccess]);
 
   if (!mounted) return null;
 
-  // --- RENDER ---
   if (!isConnected) {
-    // ... (Tampilan Login sama seperti sebelumnya) ...
-    return <div className="p-10 text-center">Please Login</div>;
+    return (
+        <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
+            <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
+            <div className="flex flex-col gap-3 w-full max-w-xs">
+                {filteredConnectors.map((connector) => (
+                    <button key={connector.uid} onClick={() => connect({ connector })} className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
+                    Connect {connector.id === 'injected' ? 'Farcaster Wallet' : connector.name}
+                    </button>
+                ))}
+            </div>
+        </main>
+    );
   }
 
   if (isWrongNetwork) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-red-50 p-4 text-center">
-            <h2 className="text-2xl font-bold text-red-600 mb-2">Wrong Network</h2>
-            <button onClick={() => switchChain({ chainId: base.id })} className="bg-red-600 text-white px-6 py-2 rounded-full">Switch to Base</button>
+            <h2 className="text-2xl font-bold text-red-600 mb-2">Wrong Network ⚠️</h2>
+            <button onClick={() => switchChain({ chainId: base.id })} className="bg-red-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-red-700">🔀 Switch Network</button>
         </main>
     );
   }
 
   if (!myGender) {
-      // ... (Tampilan Gender sama) ...
-      return <div className="p-10">Select Gender...</div>;
+      return (
+        <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
+            <div className="flex flex-col gap-4 w-full max-w-xs">
+                <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👨 Man</button>
+                <button onClick={() => setMyGender('female')} className="bg-pink-100 border-2 border-pink-500 text-pink-700 p-6 rounded-2xl text-xl font-bold">👩 Woman</button>
+            </div>
+        </main>
+      );
   }
-
-  // Cek apakah harus di-LOCK
-  // Dikunci jika: Antrian >= 50 ATAU sedang proses transaksi (isPending)
-  const isLocked = queueAddr.length >= 50 || isPending;
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -303,36 +292,24 @@ export default function Home() {
       <div className="absolute top-4 right-4 z-20">
          <div className={`px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2 ${isPending ? 'bg-orange-100 border-orange-300' : 'bg-white'}`}>
             {isPending ? (
-                <>
-                    <span className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></span>
-                    <span className="text-orange-600 font-bold">Confirming...</span>
-                </>
+                <span className="text-orange-600 font-bold">Confirming...</span>
             ) : (
-                // Tombol Retry muncul jika error / batal
-                txError ? (
-                    <span className="text-red-500 font-bold cursor-pointer" onClick={() => commitSwipes(queueAddr, queueLikes)}>❌ Retry?</span>
-                ) : (
-                    <span>💾 {queueAddr.length}/50</span>
-                )
+                <span>💾 {queueAddr.length}/50</span>
             )}
          </div>
       </div>
 
       <div className="relative w-72 h-96 mt-8">
         {isLoadingUsers && filteredProfiles.length === 0 ? (
-            <p className="mt-4 text-gray-500 animate-pulse text-center">Finding people...</p>
+            <div className="flex flex-col items-center justify-center h-full">
+                <p className="mt-4 text-gray-500 animate-pulse">Finding people...</p>
+            </div>
         ) : filteredProfiles.length > 0 ? (
           filteredProfiles.map((profile, index) => {
             return (
-              <div 
-                // 🔥 KEY RESET: Menggunakan resetKey untuk memaksa kartu muncul ulang
-                key={`${profile.custody_address}-${resetKey}`} 
-                className={`absolute top-0 left-0 w-full h-full transition-all duration-300 ${index === 0 ? "z-10" : "z-0 scale-95 opacity-50 translate-y-4"}`}
-              >
+              <div key={profile.custody_address} className={`absolute top-0 left-0 w-full h-full transition-all duration-300 ${index === 0 ? "z-10" : "z-0 scale-95 opacity-50 translate-y-4"}`}>
                 <div className="relative w-full h-full">
                     <SwipeCard 
-                        // 🔥 DISABLED PROP: Kunci kartu saat penuh
-                        disabled={isLocked && index === 0}
                         profile={{ 
                             fid: profile.fid, 
                             username: profile.display_name, 
@@ -355,6 +332,22 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* 🔥 TOMBOL MANUAL SUBMIT (MUNCUL JIKA ADA ANTRIAN) 🔥 */}
+      {queueAddr.length > 0 && (
+          <div className="fixed bottom-8 w-full flex justify-center z-50">
+            <button 
+                onClick={() => commitSwipes(queueAddr, queueLikes)} 
+                className={`px-8 py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex items-center gap-2 ${
+                    queueAddr.length >= 50 
+                        ? "bg-red-600 animate-bounce" 
+                        : "bg-black hover:bg-gray-800"
+                }`}
+            >
+                {queueAddr.length >= 50 ? "⚠️ LIMIT REACHED: SUBMIT NOW" : `Save Progress (${queueAddr.length})`}
+            </button>
+          </div>
+      )}
     </main>
   );
 }

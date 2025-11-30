@@ -19,7 +19,6 @@
       "social",
       "base"
     ],
-
      "baseBuilder": {
         "allowedAddresses": ["0x4fba95e4772be6d37a0c931D00570Fe2c9675524"]
     }
