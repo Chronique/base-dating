@@ -20,6 +20,8 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
+  // HAPUS OVERLAY WARNA (Penyebab Glitch)
+  // Kita hanya pakai Opacity untuk Teks Stempel
   const likeOpacity = useTransform(x, [20, 150], [0, 1]);
   const passOpacity = useTransform(x, [-150, -20], [1, 0]);
 
@@ -50,6 +52,7 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
       style={{ x, rotate }}
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
+      // 🔥 TAMBAHKAN 'will-change-transform' AGAR LEBIH MULUS 🔥
       className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col items-center overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
     >
       <div className="w-full h-3/4 bg-gray-200 relative">
@@ -59,7 +62,7 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
             className="w-full h-full object-cover pointer-events-none" 
         />
         
-        {/* 🔥 EFEK BIRU TIPIS KHUSUS BASE USER (STATIS) 🔥 */}
+        {/* EFEK BIRU TIPIS (Hanya statis, tidak berubah saat geser) */}
         {profile.type === 'base' && (
             <div className="absolute inset-0 bg-blue-500/10 pointer-events-none mix-blend-multiply" />
         )}
@@ -69,13 +72,19 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
 
-        {/* STAMP LIKE */}
-        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
+        {/* STAMP LIKE (Hijau) */}
+        <motion.div 
+            style={{ opacity: likeOpacity }} 
+            className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg"
+        >
             LIKE
         </motion.div>
 
-        {/* STAMP NOPE */}
-        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
+        {/* STAMP NOPE (Merah) */}
+        <motion.div 
+            style={{ opacity: passOpacity }} 
+            className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg"
+        >
             NOPE
         </motion.div>
       </div>

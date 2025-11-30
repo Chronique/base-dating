@@ -255,7 +255,7 @@ export default function Home() {
           return prev;
       });
       
-      alert("✅ 50 Swipes Saved! Lanjut Swipe.");
+      alert("Your payments have been recorded successfully!");
     }
   }, [isSuccess]);
 
