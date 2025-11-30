@@ -364,18 +364,23 @@ export default function Home() {
         )}
       </div>
 
-      {/* 🔥 TOMBOL MANUAL SUBMIT (MUNCUL JIKA ADA ANTRIAN) 🔥 */}
+  {/* 🔥 TOMBOL MANUAL SUBMIT (MUNCUL JIKA ADA ANTRIAN) 🔥 */}
       {queueAddr.length > 0 && (
-          <div className="fixed bottom-8 w-full flex justify-center z-50">
+          <div className="fixed bottom-8 w-full flex justify-center z-50 px-4">
             <button 
                 onClick={() => commitSwipes(queueAddr, queueLikes)} 
-                className={`px-8 py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex items-center gap-2 ${
+                disabled={isPending} // Disable saat loading
+                className={`w-full max-w-xs py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${
                     queueAddr.length >= 50 
-                        ? "bg-red-600 animate-bounce" 
-                        : "bg-black hover:bg-gray-800"
-                }`}
+                        ? "bg-red-600 animate-bounce" // Merah & Mental kalau penuh
+                        : "bg-black hover:bg-gray-800" // Hitam biasa kalau belum penuh
+                } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
             >
-                {queueAddr.length >= 50 ? "⚠️ LIMIT REACHED: SUBMIT NOW" : `Save Progress (${queueAddr.length})`}
+                {isPending ? (
+                    <>⏳ Processing...</>
+                ) : (
+                    queueAddr.length >= 50 ? "⚠️ LIMIT REACHED: SUBMIT NOW" : `Save Progress (${queueAddr.length})`
+                )}
             </button>
           </div>
       )}
