@@ -11,7 +11,7 @@ export type Profile = {
   username: string;
   display_name?: string;
   bio: string;
-  pfp_url: string; // <--- UBAH DARI pfpUrl JADI pfp_url
+  pfp_url: string; // ✅ NAMA PROPERTI SUDAH DIPERBAIKI (Sesuai API Neynar)
   custody_address: string;
   gender?: 'male' | 'female';
   type?: 'farcaster' | 'base';
@@ -42,7 +42,7 @@ export function SwipeCard({ profile, onSwipe, onCardLeftScreen }: {
             <div className="w-full h-full bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 select-none cursor-grab active:cursor-grabbing">
                 <div className="w-full h-3/4 bg-gray-100 relative pointer-events-none">
                     <img 
-                        src={profile.pfp_url} // <--- UBAH DISINI JUGA
+                        src={profile.pfp_url} // ✅ Menggunakan pfp_url
                         alt={displayName} 
                         className="w-full h-full object-cover"
                         draggable={false}
@@ -50,7 +50,7 @@ export function SwipeCard({ profile, onSwipe, onCardLeftScreen }: {
 
                     {/* BADGE TIPE USER */}
                     <div className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20">
-                        {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
+                        🟣 FARCASTER
                     </div>
                 </div>
 
