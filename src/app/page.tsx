@@ -45,7 +45,7 @@ function MatchModal({ partner, onClose }: { partner: string, onClose: () => void
 
 export default function Home() {
   const [profiles, setProfiles] = useState<FarcasterUser[]>([]);
-  const [isLoadingUsers, setIsLoadingUsers] = useState(true); // Default true biar skeleton muncul
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [context, setContext] = useState<any>();
 
@@ -54,6 +54,9 @@ export default function Home() {
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
   const [matchPartner, setMatchPartner] = useState<string | null>(null);
+  
+  // STATE BARU: Untuk menangani timeout auto-connect
+  const [isAutoConnecting, setIsAutoConnecting] = useState(false);
 
   const { isConnected, address } = useAccount();
   const { connectors, connect, error: connectError } = useConnect();
@@ -85,12 +88,10 @@ export default function Home() {
     });
   };
 
-  // --- 1. SUPER FAST INIT (Prioritas Utama) ---
   useEffect(() => {
     const initFast = async () => {
       setMounted(true);
       
-      // A. Restore Data (Cepat, Sync)
       if (typeof window !== 'undefined') {
           const savedQueue = localStorage.getItem('baseDatingQueue');
           const savedGender = localStorage.getItem('baseDatingGender');
@@ -104,12 +105,10 @@ export default function Home() {
       }
       setIsStorageLoaded(true);
 
-      // B. Init Farcaster SDK (Langsung panggil, jangan tunggu fetch user)
       try {
         const ctx = await sdk.context;
         setContext(ctx);
-        sdk.actions.ready(); // 🔥 KUNCI: Bilang ready secepat mungkin!
-        console.log("Farcaster Ready");
+        sdk.actions.ready();
       } catch (err) {
         console.log("Browser Mode");
       }
@@ -118,13 +117,10 @@ export default function Home() {
     initFast();
   }, []);
 
-  // --- 2. FETCH USERS (Background Process) ---
   useEffect(() => {
     const fetchUsersBg = async () => {
       if (!mounted) return;
-      
       try {
-        // Ambil data (agak lama, biarkan berjalan di background)
         const randomStart = Math.floor(Math.random() * 10000) + 1;
         const randomFids = Array.from({ length: 30 }, (_, i) => randomStart + i).join(',');
 
@@ -158,7 +154,7 @@ export default function Home() {
         
         setProfiles(cleanUsers);
       } catch (e) {
-        setProfiles(generateBaseUsers(50)); // Fallback
+        setProfiles(generateBaseUsers(50));
       } finally {
         setIsLoadingUsers(false);
       }
@@ -167,7 +163,6 @@ export default function Home() {
     if (mounted) fetchUsersBg();
   }, [mounted]);
 
-  // --- 3. AUTO SAVE ---
   useEffect(() => {
     if (isStorageLoaded && typeof window !== 'undefined') {
         const data = { addrs: queueAddr, likes: queueLikes };
@@ -176,21 +171,43 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // --- 4. AUTO CONNECT (Optimized) ---
+  // --- 4. AUTO CONNECT (FIXED STUCK ISSUE) ---
   useEffect(() => {
+    // Jalankan hanya jika di Farcaster, belum connect, dan belum pernah coba
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
+        setIsAutoConnecting(true); // Mulai loading
         
-        // Coba connect segera setelah mounted
-        setTimeout(() => {
+        const timer = setTimeout(() => {
             const farcasterWallet = connectors.find(c => c.id === 'injected');
             if (farcasterWallet) {
                 console.log("🔄 Auto-connecting...");
                 connect({ connector: farcasterWallet });
+            } else {
+                // Jika wallet tidak ketemu, hentikan loading
+                setIsAutoConnecting(false);
             }
-        }, 500); // Delay dikit biar aman
+        }, 800); // Delay 800ms
+
+        // Safety timeout: Jika 5 detik masih loading, matikan loading agar tombol muncul
+        const safetyTimer = setTimeout(() => {
+            setIsAutoConnecting(false);
+        }, 5000);
+
+        return () => {
+            clearTimeout(timer);
+            clearTimeout(safetyTimer);
+        };
     }
   }, [mounted, context, isConnected, connectors, connect]);
+
+  // Stop loading jika sudah connect atau ada error
+  useEffect(() => {
+      if (isConnected || connectError) {
+          setIsAutoConnecting(false);
+      }
+  }, [isConnected, connectError]);
+
 
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
     .filter(p => !queueAddr.includes(p.custody_address));
@@ -251,16 +268,21 @@ export default function Home() {
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
-            {context && !connectError ? (
+            {/* Tampilkan Loading HANYA jika sedang proses auto-connect */}
+            {context && isAutoConnecting ? (
                 <div className="animate-pulse flex flex-col items-center">
-                    <div className="w-16 h-16 bg-gray-200 rounded-full mb-4 animate-spin"></div>
+                    <div className="w-16 h-16 bg-blue-100 rounded-full mb-4 animate-spin border-4 border-blue-500 border-t-transparent"></div>
                     <p className="text-gray-500 font-bold">Connecting to @{context.user.username}...</p>
-                    <p className="text-xs text-gray-400 mt-2">Loading profiles in background...</p>
+                    <p className="text-xs text-gray-400 mt-2">Takes a few seconds...</p>
                 </div>
             ) : (
+                // Jika tidak sedang auto-connect (atau gagal/timeout), tampilkan tombol manual
                 <>
                     <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
                     <p className="text-gray-500 mb-8">Connect wallet to find your soulmate</p>
+                    
+                    {connectError && <p className="text-red-500 text-xs mb-4 bg-red-100 p-2 rounded">Failed to connect automatically. Please tap below.</p>}
+
                     <div className="flex flex-col gap-3 w-full max-w-xs">
                         {filteredConnectors.map((connector) => (
                             <button key={connector.uid} onClick={() => connect({ connector })} className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
@@ -314,7 +336,6 @@ export default function Home() {
       </div>
 
       <div className="relative w-72 h-96 mt-8">
-        {/* Loading State yang lebih baik */}
         {isLoadingUsers && filteredProfiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
