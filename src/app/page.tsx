@@ -2,12 +2,21 @@
 
 import { useState, useEffect, useRef } from "react";
 import sdk from "@farcaster/frame-sdk";
-import { useWriteContract, useWaitForTransactionReceipt, useAccount, useConnect, useWatchContractEvent, useChainId, useSwitchChain, useBalance } from "wagmi";
+import { 
+  useWriteContract, 
+  useWaitForTransactionReceipt, 
+  useAccount, 
+  useConnect, 
+  useWatchContractEvent, 
+  useChainId, 
+  useSwitchChain,
+  useBalance 
+} from "wagmi";
 import { base } from "wagmi/chains"; 
 import { SwipeCard } from "../components/SwipeCard"; 
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
-// Data Types
+// --- TIPE DATA ---
 type FarcasterUser = {
   fid: number;
   username: string;
@@ -15,9 +24,41 @@ type FarcasterUser = {
   custody_address: string;
   display_name: string;
   gender: 'male' | 'female';
-  // 👇 Tambahkan ini biar gak error 'Property type does not exist'
-  type?: 'farcaster' | 'base'; 
+  type: 'farcaster' | 'base';
 };
+
+// --- KOMPONEN MODAL MATCH ---
+function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
+    // Link untuk membuka chat XMTP (Converse / Coinbase Wallet)
+    const chatLink = `https://xmttp.chat/dm/${partner}`; 
+    
+    return (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-in fade-in zoom-in">
+            <div className="bg-white p-6 rounded-3xl text-center max-w-xs mx-4">
+                <div className="text-6xl mb-4">💖</div>
+                <h2 className="text-2xl font-bold text-pink-600 mb-2">It's a Match!</h2>
+                <p className="text-gray-500 mb-6">You and {partner.slice(0,6)}... liked each other!</p>
+                
+                <div className="flex flex-col gap-3">
+                    <a 
+                        href={chatLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-blue-600 text-white py-3 px-6 rounded-xl font-bold hover:bg-blue-700 transition"
+                    >
+                        💬 Chat on XMTP
+                    </a>
+                    <button 
+                        onClick={onClose}
+                        className="bg-gray-200 text-gray-700 py-3 px-6 rounded-xl font-bold"
+                    >
+                        Keep Swiping
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default function Home() {
   const [profiles, setProfiles] = useState<FarcasterUser[]>([]);
@@ -25,21 +66,25 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [context, setContext] = useState<any>();
 
-  // GENDER & QUEUE STATE
+  // STATE PREFERENSI & ANTRIAN
   const [myGender, setMyGender] = useState<'male' | 'female' | null>(null);
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
+  
+  // STATE MATCH (Untuk menampilkan modal)
+  const [matchPartner, setMatchPartner] = useState<string | null>(null);
 
-  // Wagmi Hooks
+  // WAGMI HOOKS
   const { isConnected, address } = useAccount();
   const { connectors, connect, error: connectError } = useConnect();
   const { data: balance } = useBalance({ address });
-  const hasAttemptedAutoConnect = useRef(false);
-
+  
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const isWrongNetwork = isConnected && chainId !== base.id;
+
+  const hasAttemptedAutoConnect = useRef(false);
 
   const filteredConnectors = connectors.filter((c) => 
     c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('metamask') || c.id === 'injected'
@@ -48,37 +93,34 @@ export default function Home() {
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // --- HELPER: GENERATE RANDOM BASE USER ---
   const generateBaseUsers = (count: number): FarcasterUser[] => {
     return Array.from({ length: count }).map((_, i) => {
         const randomAddr = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
         const isMale = Math.random() > 0.5;
-        
         return {
-            fid: 999000 + i, 
-            username: `0x...${randomAddr.slice(-4)}`,
-            display_name: `Base User ${i + 1}`,
+            fid: 900000 + i,
+            username: `${randomAddr.slice(0, 6)}...${randomAddr.slice(-4)}`,
+            display_name: `Base User ${Math.floor(Math.random() * 1000)}`,
             pfp_url: `https://api.dicebear.com/9.x/identicon/svg?seed=${randomAddr}`,
             custody_address: randomAddr,
             gender: isMale ? 'male' : 'female',
-            type: 'base' // Penanda user base
+            type: 'base'
         };
     });
   };
 
-  // 1. INIT & LOAD DATA
+  // 1. INIT APLIKASI
   useEffect(() => {
     const initApp = async () => {
       setMounted(true);
 
-      // A. Restore Storage
       if (typeof window !== 'undefined') {
           const savedQueue = localStorage.getItem('baseDatingQueue');
           const savedGender = localStorage.getItem('baseDatingGender');
           if (savedQueue) {
               try {
                   const parsed = JSON.parse(savedQueue);
-                  if (parsed.addrs && parsed.likes) {
+                  if (parsed.addrs && Array.isArray(parsed.addrs)) {
                       setQueueAddr(parsed.addrs);
                       setQueueLikes(parsed.likes);
                   }
@@ -88,10 +130,8 @@ export default function Home() {
       }
       setIsStorageLoaded(true);
 
-      // B. Fetch Users (Hybrid)
       setIsLoadingUsers(true);
       try {
-        // 1. Ambil User Farcaster
         const randomStart = Math.floor(Math.random() * 10000) + 1;
         const randomFids = Array.from({ length: 30 }, (_, i) => randomStart + i).join(',');
 
@@ -113,38 +153,31 @@ export default function Home() {
                 pfp_url: u.pfp_url,
                 custody_address: u.verified_addresses.eth_addresses[0] || u.custody_address,
                 gender: index % 2 === 0 ? 'female' : 'male',
-                type: 'farcaster' // Penanda user farcaster
+                type: 'farcaster' as const
             }));
             combinedUsers = [...fcUsers];
         }
 
-        // 2. Tambah User Base
-        const baseUsers = generateBaseUsers(20);
+        const baseUsers = generateBaseUsers(30);
         combinedUsers = [...combinedUsers, ...baseUsers];
-
-        // 3. Shuffle & Clean
         combinedUsers.sort(() => Math.random() - 0.5);
-        const cleanUsers = combinedUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address.startsWith('0x'));
+        const cleanUsers = combinedUsers.filter(u => 
+            u.pfp_url && u.custody_address && u.custody_address.startsWith('0x')
+        );
         
-        // Cek duplicate dengan queue
-        // Note: queueAddr di sini masih initial state, filter real-time ada di render
         setProfiles(cleanUsers);
 
       } catch (e) {
-        console.error("Error fetching", e);
-        setProfiles(generateBaseUsers(50)); // Fallback full base users
+        setProfiles(generateBaseUsers(50));
       } finally {
         setIsLoadingUsers(false);
       }
 
-      // C. Farcaster Context
       try {
         const ctx = await sdk.context;
         setContext(ctx);
         sdk.actions.ready(); 
-      } catch (err) {
-        console.log("Browser Mode");
-      }
+      } catch (err) {}
     };
 
     if (sdk && !mounted) initApp();
@@ -171,11 +204,10 @@ export default function Home() {
     }
   }, [mounted, context, isConnected, connectors, connect]);
 
-  // 4. FILTER PROFILES
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
     .filter(p => !queueAddr.includes(p.custody_address));
 
-  // 5. MATCH WATCHER
+  // 🔥 4. MATCH WATCHER & NOTIFICATION 🔥
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -184,14 +216,25 @@ export default function Home() {
         const myAddr = address?.toLowerCase();
         logs.forEach((log: any) => {
             const { user1, user2 } = log.args;
+            
+            // Cek apakah ini match saya
             if (user1.toLowerCase() === myAddr || user2.toLowerCase() === myAddr) {
-                alert("💖 IT'S A MATCH! 💖\nYou matched on-chain!");
+                // Tentukan siapa partnernya
+                const partnerAddr = user1.toLowerCase() === myAddr ? user2 : user1;
+                
+                // 1. Tampilkan Modal Chat
+                setMatchPartner(partnerAddr);
+
+                // 2. Kirim Notifikasi (Simulasi Log dulu, perlu server utk real push)
+                if (sdk && context) {
+                    // Jika di farcaster, kita bisa panggil API notifikasi
+                    console.log(`🔔 Sending notification: Match with ${partnerAddr}`);
+                }
             }
         });
     },
   });
 
-  // --- ACTIONS ---
   const handleSwipe = (liked: boolean) => {
     if (filteredProfiles.length === 0) return;
     const currentProfile = filteredProfiles[0];
@@ -210,7 +253,7 @@ export default function Home() {
   };
 
   const commitSwipes = (addrs: string[], likes: boolean[]) => {
-    console.log("🚀 Submitting batch...");
+    console.log("🚀 Submitting 50 swipes...");
     writeContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: DATING_ABI,
@@ -224,7 +267,7 @@ export default function Home() {
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
-      alert("✅ 50 Swipes Saved On-Chain!");
+      alert("✅ 50 Swipes Successfully Saved On-Chain!");
     }
   }, [isSuccess]);
 
@@ -232,7 +275,6 @@ export default function Home() {
 
   // --- RENDER ---
 
-  // A. LOGIN
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -245,7 +287,6 @@ export default function Home() {
                 <>
                     <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
                     <p className="text-gray-500 mb-8">Connect wallet to find your soulmate</p>
-                    {connectError && <p className="text-red-500 text-xs mb-4">{connectError.message}</p>}
                     <div className="flex flex-col gap-3 w-full max-w-xs">
                         {filteredConnectors.map((connector) => (
                             <button key={connector.uid} onClick={() => connect({ connector })} className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
@@ -259,7 +300,6 @@ export default function Home() {
     );
   }
 
-  // B. WRONG NETWORK
   if (isWrongNetwork) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-red-50 p-4 text-center">
@@ -272,7 +312,6 @@ export default function Home() {
     );
   }
 
-  // C. GENDER SELECTION
   if (!myGender) {
       return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
@@ -285,18 +324,33 @@ export default function Home() {
       );
   }
 
-  // D. MAIN SWIPE
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative">
-      {/* BALANCE & STATUS */}
-      <div className="absolute top-4 left-4 z-50">
-         <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm">
+      
+      {/* 1. MODAL MATCH (Muncul jika ada match) */}
+      {matchPartner && (
+          <MatchModal 
+            partner={matchPartner} 
+            onClose={() => setMatchPartner(null)} 
+          />
+      )}
+
+      {/* 2. BALANCE & STATUS */}
+      <div className="absolute top-4 left-4 z-20">
+         <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm shadow-md">
             💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : '...'}
          </div>
       </div>
       <div className="absolute top-4 right-4 z-20">
-         <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border">
-            {isPending ? <span className="text-orange-500 animate-pulse">⏳ Saving...</span> : <span>💾 {queueAddr.length}/50</span>}
+         <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2">
+            {isPending ? (
+                <>
+                    <span className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></span>
+                    <span className="text-orange-500 font-bold">Saving...</span>
+                </>
+            ) : (
+                <span>💾 {queueAddr.length}/50</span>
+            )}
          </div>
       </div>
 
@@ -304,20 +358,23 @@ export default function Home() {
         {isLoadingUsers && filteredProfiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4 text-gray-500">Finding People...</p>
+                <p className="mt-4 text-gray-500">Finding Real Users...</p>
             </div>
         ) : filteredProfiles.length > 0 ? (
           filteredProfiles.map((profile, index) => {
             return (
               <div key={profile.custody_address} className={`absolute top-0 left-0 w-full h-full transition-all duration-300 ${index === 0 ? "z-10" : "z-0 scale-95 opacity-50 translate-y-4"}`}>
                 <div className="relative w-full h-full">
+                    {/* 👇 Update SwipeCard untuk support Basename */}
                     <SwipeCard 
                         profile={{ 
                             fid: profile.fid, 
                             username: profile.display_name, 
-                            // Tampilkan Icon Farcaster vs Base
                             bio: `${profile.type === 'base' ? '🔵 Base User' : '🟣 Farcaster'} | ${profile.gender === 'male' ? '👨' : '👩'}`, 
-                            pfpUrl: profile.pfp_url 
+                            pfpUrl: profile.pfp_url,
+                            custody_address: profile.custody_address, // Kirim address untuk Basename lookup
+                            gender: profile.gender,
+                            type: profile.type
                         }} 
                         onSwipe={handleSwipe} 
                     />
@@ -328,9 +385,9 @@ export default function Home() {
         ) : (
           <div className="text-center">
              <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
-             <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4">Refresh Users</button>
+             <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4 shadow hover:bg-blue-600 transition">Refresh Users</button>
              {queueAddr.length > 0 && (
-                 <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow">
+                 <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow hover:bg-green-700 transition animate-bounce">
                     Save Pending ({queueAddr.length})
                  </button>
              )}
