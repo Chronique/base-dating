@@ -16,6 +16,7 @@ import { base } from "wagmi/chains";
 import { SwipeCard } from "../components/SwipeCard"; 
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
+// --- TIPE DATA ---
 type FarcasterUser = {
   fid: number;
   username: string;
@@ -26,6 +27,7 @@ type FarcasterUser = {
   type: 'farcaster' | 'base';
 };
 
+// --- KOMPONEN MODAL MATCH ---
 function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
     const chatLink = `https://xmttp.chat/dm/${partner}`; 
     return (
@@ -54,9 +56,6 @@ export default function Home() {
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
   const [matchPartner, setMatchPartner] = useState<string | null>(null);
-  
-  // STATE BARU: Untuk menangani timeout auto-connect
-  const [isAutoConnecting, setIsAutoConnecting] = useState(false);
 
   const { isConnected, address } = useAccount();
   const { connectors, connect, error: connectError } = useConnect();
@@ -73,53 +72,46 @@ export default function Home() {
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
+  // --- HELPER: GENERATE RANDOM BASE USER (BLUE THEME) ---
   const generateBaseUsers = (count: number): FarcasterUser[] => {
     return Array.from({ length: count }).map((_, i) => {
         const randomAddr = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
+        const isMale = Math.random() > 0.5;
         return {
             fid: 900000 + i,
             username: `${randomAddr.slice(0, 6)}...`,
             display_name: `Base User ${Math.floor(Math.random() * 1000)}`,
-            pfp_url: `https://api.dicebear.com/9.x/identicon/svg?seed=${randomAddr}`,
+            // 🔥 FIX: Ganti Identicon (Kotak-kotak) dengan Gambar Biru Polos 🔥
+            pfp_url: `https://placehold.co/600x800/0052FF/FFFFFF/png?text=Base+User+${i+1}`,
             custody_address: randomAddr,
-            gender: Math.random() > 0.5 ? 'male' : 'female',
+            gender: isMale ? 'male' : 'female',
             type: 'base'
         };
     });
   };
 
+  // 1. INIT APLIKASI
   useEffect(() => {
-    const initFast = async () => {
+    const initApp = async () => {
       setMounted(true);
-      
+
       if (typeof window !== 'undefined') {
           const savedQueue = localStorage.getItem('baseDatingQueue');
           const savedGender = localStorage.getItem('baseDatingGender');
           if (savedQueue) {
               try {
                   const parsed = JSON.parse(savedQueue);
-                  if (parsed.addrs) { setQueueAddr(parsed.addrs); setQueueLikes(parsed.likes); }
+                  if (parsed.addrs && Array.isArray(parsed.addrs)) {
+                      setQueueAddr(parsed.addrs);
+                      setQueueLikes(parsed.likes);
+                  }
               } catch (e) {}
           }
           if (savedGender) setMyGender(savedGender as 'male' | 'female');
       }
       setIsStorageLoaded(true);
 
-      try {
-        const ctx = await sdk.context;
-        setContext(ctx);
-        sdk.actions.ready();
-      } catch (err) {
-        console.log("Browser Mode");
-      }
-    };
-
-    initFast();
-  }, []);
-
-  useEffect(() => {
-    const fetchUsersBg = async () => {
-      if (!mounted) return;
+      setIsLoadingUsers(true);
       try {
         const randomStart = Math.floor(Math.random() * 10000) + 1;
         const randomFids = Array.from({ length: 30 }, (_, i) => randomStart + i).join(',');
@@ -150,19 +142,29 @@ export default function Home() {
         const baseUsers = generateBaseUsers(30);
         combinedUsers = [...combinedUsers, ...baseUsers];
         combinedUsers.sort(() => Math.random() - 0.5);
-        const cleanUsers = combinedUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address.startsWith('0x'));
+        const cleanUsers = combinedUsers.filter(u => 
+            u.pfp_url && u.custody_address && u.custody_address.startsWith('0x')
+        );
         
         setProfiles(cleanUsers);
+
       } catch (e) {
         setProfiles(generateBaseUsers(50));
       } finally {
         setIsLoadingUsers(false);
       }
+
+      try {
+        const ctx = await sdk.context;
+        setContext(ctx);
+        sdk.actions.ready(); 
+      } catch (err) {}
     };
 
-    if (mounted) fetchUsersBg();
+    if (sdk && !mounted) initApp();
   }, [mounted]);
 
+  // 2. AUTO SAVE
   useEffect(() => {
     if (isStorageLoaded && typeof window !== 'undefined') {
         const data = { addrs: queueAddr, likes: queueLikes };
@@ -171,43 +173,17 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // --- 4. AUTO CONNECT (FIXED STUCK ISSUE) ---
+  // 3. AUTO CONNECT
   useEffect(() => {
-    // Jalankan hanya jika di Farcaster, belum connect, dan belum pernah coba
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
-        setIsAutoConnecting(true); // Mulai loading
-        
         const timer = setTimeout(() => {
             const farcasterWallet = connectors.find(c => c.id === 'injected');
-            if (farcasterWallet) {
-                console.log("🔄 Auto-connecting...");
-                connect({ connector: farcasterWallet });
-            } else {
-                // Jika wallet tidak ketemu, hentikan loading
-                setIsAutoConnecting(false);
-            }
-        }, 800); // Delay 800ms
-
-        // Safety timeout: Jika 5 detik masih loading, matikan loading agar tombol muncul
-        const safetyTimer = setTimeout(() => {
-            setIsAutoConnecting(false);
-        }, 5000);
-
-        return () => {
-            clearTimeout(timer);
-            clearTimeout(safetyTimer);
-        };
+            if (farcasterWallet) connect({ connector: farcasterWallet });
+        }, 700);
+        return () => clearTimeout(timer);
     }
   }, [mounted, context, isConnected, connectors, connect]);
-
-  // Stop loading jika sudah connect atau ada error
-  useEffect(() => {
-      if (isConnected || connectError) {
-          setIsAutoConnecting(false);
-      }
-  }, [isConnected, connectError]);
-
 
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
     .filter(p => !queueAddr.includes(p.custody_address));
@@ -231,14 +207,18 @@ export default function Home() {
   const handleSwipe = (liked: boolean) => {
     if (filteredProfiles.length === 0) return;
     const currentProfile = filteredProfiles[0];
+    
     const newAddr = [...queueAddr, currentProfile.custody_address];
     const newLikes = [...queueLikes, liked];
+    
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
+    // Auto-save di 50
     if (newAddr.length >= 50) {
         commitSwipes(newAddr, newLikes);
     }
+    
     setProfiles((prev) => prev.filter(p => p.custody_address !== currentProfile.custody_address));
   };
 
@@ -268,21 +248,15 @@ export default function Home() {
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
-            {/* Tampilkan Loading HANYA jika sedang proses auto-connect */}
-            {context && isAutoConnecting ? (
+            {context && !connectError ? (
                 <div className="animate-pulse flex flex-col items-center">
-                    <div className="w-16 h-16 bg-blue-100 rounded-full mb-4 animate-spin border-4 border-blue-500 border-t-transparent"></div>
+                    <div className="w-16 h-16 bg-gray-200 rounded-full mb-4 animate-spin"></div>
                     <p className="text-gray-500 font-bold">Connecting to @{context.user.username}...</p>
-                    <p className="text-xs text-gray-400 mt-2">Takes a few seconds...</p>
                 </div>
             ) : (
-                // Jika tidak sedang auto-connect (atau gagal/timeout), tampilkan tombol manual
                 <>
                     <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
                     <p className="text-gray-500 mb-8">Connect wallet to find your soulmate</p>
-                    
-                    {connectError && <p className="text-red-500 text-xs mb-4 bg-red-100 p-2 rounded">Failed to connect automatically. Please tap below.</p>}
-
                     <div className="flex flex-col gap-3 w-full max-w-xs">
                         {filteredConnectors.map((connector) => (
                             <button key={connector.uid} onClick={() => connect({ connector })} className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
@@ -350,7 +324,9 @@ export default function Home() {
                         profile={{ 
                             fid: profile.fid, 
                             username: profile.display_name, 
-                            bio: `${profile.type === 'base' ? '🔵 Base' : '🟣 Farcaster'} | ${profile.gender === 'male' ? '👨' : '👩'}`, 
+                            // 🔥 FIX: Hapus tulisan 'Base User' karena sudah ada Badge di atas
+                            // Ganti jadi format simpel: [Gender Icon] [Gender Text] @[Username]
+                            bio: `${profile.gender === 'male' ? '👨 Man' : '👩 Woman'} • @${profile.username}`, 
                             pfpUrl: profile.pfp_url,
                             custody_address: profile.custody_address,
                             gender: profile.gender,
