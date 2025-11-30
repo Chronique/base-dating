@@ -19,8 +19,7 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
-  // 🔥 SOLUSI BERSIH: Hapus logika overlay warna yang berat 🔥
-  // Kita hanya mainkan opacity untuk TEKS/STEMPEL saja.
+  // 🔥 SOLUSI BERSIH: Hanya Text Stamp, Tanpa Background Warna 🔥
   
   // Opacity Stamp (Tulisan LIKE/PASS)
   // Muncul perlahan saat digeser 20px sampai 150px
@@ -58,8 +57,7 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
             className="w-full h-full object-cover pointer-events-none" 
         />
         
-        {/* HAPUS BAGIAN MOTION.DIV OVERLAY WARNA DISINI */}
-        {/* Biarkan foto bersih tanpa filter warna */}
+        {/* 🗑️ SAYA SUDAH HAPUS SEMUA LAYER WARNA DISINI BIAR RINGAN */}
 
         {/* BADGE TIPE USER */}
         <div className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20">
@@ -67,12 +65,18 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
         </div>
 
         {/* INDIKATOR LIKE (Stempel Hijau) */}
-        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-2 rounded transform -rotate-12 bg-white/80 z-30 tracking-widest text-xl">
+        <motion.div 
+            style={{ opacity: likeOpacity }} 
+            className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/90 z-30 tracking-widest text-2xl shadow-lg"
+        >
             LIKE
         </motion.div>
 
         {/* INDIKATOR PASS (Stempel Merah) */}
-        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-2 rounded transform rotate-12 bg-white/80 z-30 tracking-widest text-xl">
+        <motion.div 
+            style={{ opacity: passOpacity }} 
+            className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/90 z-30 tracking-widest text-2xl shadow-lg"
+        >
             NOPE
         </motion.div>
       </div>
