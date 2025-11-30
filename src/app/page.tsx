@@ -23,7 +23,7 @@ type FarcasterUser = {
   custody_address: string;
   display_name: string;
   gender: 'male' | 'female';
-  type: 'farcaster' | 'base';
+  type: 'farcaster'; // Kita kunci hanya Farcaster
 };
 
 function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
@@ -70,22 +70,6 @@ export default function Home() {
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // Helper Generate User
-  const generateBaseUsers = (count: number): FarcasterUser[] => {
-    return Array.from({ length: count }).map((_, i) => {
-        const randomAddr = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
-        return {
-            fid: 900000 + i,
-            username: `${randomAddr.slice(0, 6)}...`,
-            display_name: `Base User ${Math.floor(Math.random() * 1000)}`,
-            pfp_url: `https://api.dicebear.com/9.x/identicon/svg?seed=${randomAddr}`,
-            custody_address: randomAddr,
-            gender: Math.random() > 0.5 ? 'male' : 'female',
-            type: 'base'
-        };
-    });
-  };
-
   // 1. INIT
   useEffect(() => {
     const initFast = async () => {
@@ -114,13 +98,14 @@ export default function Home() {
     initFast();
   }, []);
 
-  // 2. FETCH USERS
+  // 2. FETCH USERS (HANYA FARCASTER)
   useEffect(() => {
     const fetchUsersBg = async () => {
       if (!mounted) return;
+      setIsLoadingUsers(true);
       try {
         const randomStart = Math.floor(Math.random() * 10000) + 1;
-        const randomFids = Array.from({ length: 30 }, (_, i) => randomStart + i).join(',');
+        const randomFids = Array.from({ length: 70 }, (_, i) => randomStart + i).join(',');
 
         const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${randomFids}`, {
             headers: {
@@ -130,10 +115,9 @@ export default function Home() {
         });
 
         const data = await response.json();
-        let combinedUsers: FarcasterUser[] = [];
-
+        
         if (data.users) {
-            const fcUsers = data.users.map((u: any, index: number) => ({
+            const fcUsers: FarcasterUser[] = data.users.map((u: any, index: number) => ({
                 fid: u.fid,
                 username: u.username,
                 display_name: u.display_name,
@@ -142,17 +126,19 @@ export default function Home() {
                 gender: index % 2 === 0 ? 'female' : 'male',
                 type: 'farcaster' as const
             }));
-            combinedUsers = [...fcUsers];
-        }
 
-        const baseUsers = generateBaseUsers(30);
-        combinedUsers = [...combinedUsers, ...baseUsers];
-        combinedUsers.sort(() => Math.random() - 0.5);
-        const cleanUsers = combinedUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address.startsWith('0x'));
-        
-        setProfiles(cleanUsers);
+            const cleanUsers = fcUsers.filter(u => 
+                u.pfp_url && 
+                u.custody_address && 
+                u.custody_address.startsWith('0x') &&
+                u.custody_address !== '0x0000000000000000000000000000000000000000'
+            );
+
+            cleanUsers.sort(() => Math.random() - 0.5);
+            setProfiles(cleanUsers);
+        }
       } catch (e) {
-        setProfiles(generateBaseUsers(50));
+        console.error("Gagal fetch user:", e);
       } finally {
         setIsLoadingUsers(false);
       }
@@ -199,7 +185,6 @@ export default function Home() {
     },
   });
 
-  // LOGIKA SWIPE
   const handleSwipe = (liked: boolean) => {
     if (queueAddr.length >= 50) {
         commitSwipes(queueAddr, queueLikes); 
@@ -233,25 +218,18 @@ export default function Home() {
     });
   };
 
-  // 🔥 UPDATE DISINI: UBAH TEXT ALERT JADI BAHASA INGGRIS 🔥
   useEffect(() => {
     if (isSuccess) {
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
-      
-      setProfiles((prev) => {
-          if (prev.length > 0) return prev.slice(1); 
-          return prev;
-      });
-      
-      alert("✅ 50 Swipes Saved! Keep Swiping."); // English
+      setProfiles((prev) => prev.length > 0 ? prev.slice(1) : prev);
+      alert("✅ 50 Swipes Saved! Keep Swiping.");
     }
   }, [isSuccess]);
 
   if (!mounted) return null;
 
-  // --- RENDER ---
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -288,7 +266,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 pb-24 relative overflow-hidden">
+    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 pb-32 relative overflow-hidden">
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
       <div className="absolute top-4 left-4 z-20">
@@ -304,7 +282,6 @@ export default function Home() {
                     <span className="text-orange-600 font-bold">Confirming...</span>
                 </>
             ) : (
-                // Tampilkan Error jika gagal
                 txError ? (
                     <span className="text-red-500 font-bold cursor-pointer" onClick={() => commitSwipes(queueAddr, queueLikes)}>❌ Retry?</span>
                 ) : (
@@ -329,7 +306,8 @@ export default function Home() {
                         profile={{ 
                             fid: profile.fid, 
                             username: profile.display_name, 
-                            bio: `${profile.type === 'base' ? '🔵 Base' : '🟣 Farcaster'} | ${profile.gender === 'male' ? '👨' : '👩'}`, 
+                            // 👇 Update: Langsung hardcode 'Farcaster' karena 'base' user sudah dihapus
+                            bio: `🟣 Farcaster | ${profile.gender === 'male' ? '👨' : '👩'} @${profile.username}`, 
                             pfpUrl: profile.pfp_url,
                             custody_address: profile.custody_address,
                             gender: profile.gender,
@@ -349,23 +327,31 @@ export default function Home() {
         )}
       </div>
 
-      {/* 🔥 UPDATE DISINI: TOMBOL GANTI TEKS 🔥 */}
       {queueAddr.length > 0 && (
-          <div className="fixed bottom-8 w-full flex justify-center z-50 px-4">
+          <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 p-4 pb-8 z-50 flex flex-col gap-2 shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
+            
+            {queueAddr.length >= 50 && (
+                <p className="text-center text-red-500 font-bold text-sm animate-pulse mb-1">
+                    ⚠️ LIMIT REACHED! Please submit transaction.
+                </p>
+            )}
+
             <button 
                 onClick={() => commitSwipes(queueAddr, queueLikes)} 
                 disabled={isPending}
-                className={`w-full max-w-xs py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${
+                className={`w-full py-4 rounded-xl font-bold text-white text-lg shadow-lg transform transition active:scale-95 flex justify-center items-center gap-2 ${
                     queueAddr.length >= 50 
-                        ? "bg-red-600 animate-bounce" 
+                        ? "bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700" 
                         : "bg-black hover:bg-gray-800"
                 } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
             >
                 {isPending ? (
-                    <>⏳ Processing...</>
+                    <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Processing Payment...
+                    </>
                 ) : (
-                    // 👇 TEKS BAHASA INGGRIS SESUAI REQUEST
-                    queueAddr.length >= 50 ? "⛽ Pay Gas to Continue Swiping" : `Save Progress (${queueAddr.length})`
+                    txError ? "🔄 Retry Gas Payment" : (queueAddr.length >= 50 ? "⛽ Pay Gas & Continue" : `Save Progress (${queueAddr.length})`)
                 )}
             </button>
           </div>
