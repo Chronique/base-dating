@@ -16,7 +16,6 @@ import { base } from "wagmi/chains";
 import { SwipeCard } from "../components/SwipeCard"; 
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
-// --- TIPE DATA ---
 type FarcasterUser = {
   fid: number;
   username: string;
@@ -27,7 +26,6 @@ type FarcasterUser = {
   type: 'farcaster' | 'base';
 };
 
-// --- KOMPONEN MODAL MATCH ---
 function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
     const chatLink = `https://xmttp.chat/dm/${partner}`; 
     return (
@@ -69,49 +67,57 @@ export default function Home() {
     c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('metamask') || c.id === 'injected'
   );
 
-  const { data: hash, writeContract, isPending } = useWriteContract();
+  const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // --- HELPER: GENERATE RANDOM BASE USER (BLUE THEME) ---
+  // Helper Generate User
   const generateBaseUsers = (count: number): FarcasterUser[] => {
     return Array.from({ length: count }).map((_, i) => {
         const randomAddr = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
-        const isMale = Math.random() > 0.5;
         return {
             fid: 900000 + i,
             username: `${randomAddr.slice(0, 6)}...`,
             display_name: `Base User ${Math.floor(Math.random() * 1000)}`,
-            // 🔥 FIX: Ganti Identicon (Kotak-kotak) dengan Gambar Biru Polos 🔥
-            pfp_url: `https://placehold.co/600x800/0052FF/FFFFFF/png?text=Base+User+${i+1}`,
+            pfp_url: `https://api.dicebear.com/9.x/identicon/svg?seed=${randomAddr}`,
             custody_address: randomAddr,
-            gender: isMale ? 'male' : 'female',
+            gender: Math.random() > 0.5 ? 'male' : 'female',
             type: 'base'
         };
     });
   };
 
-  // 1. INIT APLIKASI
+  // 1. INIT
   useEffect(() => {
-    const initApp = async () => {
+    const initFast = async () => {
       setMounted(true);
-
       if (typeof window !== 'undefined') {
           const savedQueue = localStorage.getItem('baseDatingQueue');
           const savedGender = localStorage.getItem('baseDatingGender');
           if (savedQueue) {
               try {
                   const parsed = JSON.parse(savedQueue);
-                  if (parsed.addrs && Array.isArray(parsed.addrs)) {
-                      setQueueAddr(parsed.addrs);
-                      setQueueLikes(parsed.likes);
-                  }
+                  if (parsed.addrs) { setQueueAddr(parsed.addrs); setQueueLikes(parsed.likes); }
               } catch (e) {}
           }
           if (savedGender) setMyGender(savedGender as 'male' | 'female');
       }
       setIsStorageLoaded(true);
 
-      setIsLoadingUsers(true);
+      try {
+        const ctx = await sdk.context;
+        setContext(ctx);
+        sdk.actions.ready();
+      } catch (err) {
+        console.log("Browser Mode");
+      }
+    };
+    initFast();
+  }, []);
+
+  // 2. FETCH USERS
+  useEffect(() => {
+    const fetchUsersBg = async () => {
+      if (!mounted) return;
       try {
         const randomStart = Math.floor(Math.random() * 10000) + 1;
         const randomFids = Array.from({ length: 30 }, (_, i) => randomStart + i).join(',');
@@ -142,29 +148,19 @@ export default function Home() {
         const baseUsers = generateBaseUsers(30);
         combinedUsers = [...combinedUsers, ...baseUsers];
         combinedUsers.sort(() => Math.random() - 0.5);
-        const cleanUsers = combinedUsers.filter(u => 
-            u.pfp_url && u.custody_address && u.custody_address.startsWith('0x')
-        );
+        const cleanUsers = combinedUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address.startsWith('0x'));
         
         setProfiles(cleanUsers);
-
       } catch (e) {
         setProfiles(generateBaseUsers(50));
       } finally {
         setIsLoadingUsers(false);
       }
-
-      try {
-        const ctx = await sdk.context;
-        setContext(ctx);
-        sdk.actions.ready(); 
-      } catch (err) {}
     };
-
-    if (sdk && !mounted) initApp();
+    if (mounted) fetchUsersBg();
   }, [mounted]);
 
-  // 2. AUTO SAVE
+  // 3. AUTO SAVE
   useEffect(() => {
     if (isStorageLoaded && typeof window !== 'undefined') {
         const data = { addrs: queueAddr, likes: queueLikes };
@@ -173,20 +169,21 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 3. AUTO CONNECT
+  // 4. AUTO CONNECT
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
-        const timer = setTimeout(() => {
+        setTimeout(() => {
             const farcasterWallet = connectors.find(c => c.id === 'injected');
             if (farcasterWallet) connect({ connector: farcasterWallet });
-        }, 700);
-        return () => clearTimeout(timer);
+        }, 500);
     }
   }, [mounted, context, isConnected, connectors, connect]);
 
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
-    .filter(p => !queueAddr.includes(p.custody_address));
+    // Filter: Jangan tampilkan user yg sudah ada di antrian, KECUALI jika antrian penuh (50)
+    // Ini supaya kartu ke-50 tetap muncul kalau belum sukses dikirim
+    .filter(p => queueAddr.length < 50 ? !queueAddr.includes(p.custody_address) : true);
 
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
@@ -204,7 +201,15 @@ export default function Home() {
     },
   });
 
+  // 🔥 LOGIKA SWIPE YANG DIPERBAIKI 🔥
   const handleSwipe = (liked: boolean) => {
+    // 1. Cek apakah antrian sudah penuh (Misal user swipe lagi pas error)
+    if (queueAddr.length >= 50) {
+        // Jangan tambah antrian, langsung coba kirim ulang (Retry)
+        commitSwipes(queueAddr, queueLikes);
+        return; 
+    }
+
     if (filteredProfiles.length === 0) return;
     const currentProfile = filteredProfiles[0];
     
@@ -214,11 +219,16 @@ export default function Home() {
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
-    // Auto-save di 50
+    // 2. Cek Limit 50
     if (newAddr.length >= 50) {
+        // Trigger Transaksi
         commitSwipes(newAddr, newLikes);
+        // 🛑 JANGAN HAPUS KARTU DARI LAYAR (Return di sini)
+        // Kartu ke-50 akan tetap terlihat oleh user sampai transaksi sukses
+        return;
     }
     
+    // 3. Jika belum 50, hapus kartu seperti biasa
     setProfiles((prev) => prev.filter(p => p.custody_address !== currentProfile.custody_address));
   };
 
@@ -232,19 +242,27 @@ export default function Home() {
     });
   };
 
+  // 🔥 HAPUS KARTU HANYA JIKA SUKSES 🔥
   useEffect(() => {
     if (isSuccess) {
+      // Reset Antrian
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
-      alert("✅ 50 Swipes Saved On-Chain!");
+      
+      // Hapus kartu ke-50 dari layar (agar user bisa lanjut)
+      setProfiles((prev) => {
+          if (prev.length > 0) return prev.slice(1); 
+          return prev;
+      });
+      
+      alert("✅ 50 Swipes Saved! Lanjut Swipe.");
     }
   }, [isSuccess]);
 
   if (!mounted) return null;
 
   // --- RENDER ---
-
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -252,6 +270,7 @@ export default function Home() {
                 <div className="animate-pulse flex flex-col items-center">
                     <div className="w-16 h-16 bg-gray-200 rounded-full mb-4 animate-spin"></div>
                     <p className="text-gray-500 font-bold">Connecting to @{context.user.username}...</p>
+                    <p className="text-xs text-gray-400 mt-2">Loading profiles in background...</p>
                 </div>
             ) : (
                 <>
@@ -304,8 +323,20 @@ export default function Home() {
          </div>
       </div>
       <div className="absolute top-4 right-4 z-20">
-         <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2">
-            {isPending ? <span className="text-orange-500 animate-pulse">⏳ Saving...</span> : <span>💾 {queueAddr.length}/50</span>}
+         <div className={`px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2 ${isPending ? 'bg-orange-100 border-orange-300' : 'bg-white'}`}>
+            {isPending ? (
+                <>
+                    <span className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></span>
+                    <span className="text-orange-600 font-bold">Confirming...</span>
+                </>
+            ) : (
+                // Tampilkan Error jika gagal (User cancel)
+                txError ? (
+                    <span className="text-red-500 font-bold cursor-pointer" onClick={() => commitSwipes(queueAddr, queueLikes)}>❌ Retry?</span>
+                ) : (
+                    <span>💾 {queueAddr.length}/50</span>
+                )
+            )}
          </div>
       </div>
 
@@ -324,9 +355,7 @@ export default function Home() {
                         profile={{ 
                             fid: profile.fid, 
                             username: profile.display_name, 
-                            // 🔥 FIX: Hapus tulisan 'Base User' karena sudah ada Badge di atas
-                            // Ganti jadi format simpel: [Gender Icon] [Gender Text] @[Username]
-                            bio: `${profile.gender === 'male' ? '👨 Man' : '👩 Woman'} • @${profile.username}`, 
+                            bio: `${profile.type === 'base' ? '🔵 Base' : '🟣 Farcaster'} | ${profile.gender === 'male' ? '👨' : '👩'}`, 
                             pfpUrl: profile.pfp_url,
                             custody_address: profile.custody_address,
                             gender: profile.gender,
