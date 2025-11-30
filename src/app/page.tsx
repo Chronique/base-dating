@@ -180,6 +180,8 @@ export default function Home() {
   }, [mounted, context, isConnected, connectors, connect]);
 
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
+    // Filter: Jangan tampilkan user yg sudah ada di antrian, KECUALI jika antrian penuh (50)
+    // Ini supaya kartu ke-50 tetap muncul kalau belum sukses dikirim
     .filter(p => queueAddr.length < 50 ? !queueAddr.includes(p.custody_address) : true);
 
   useWatchContractEvent({
@@ -198,11 +200,12 @@ export default function Home() {
     },
   });
 
-  // LOGIC SWIPE
+  // 🔥 LOGIKA SWIPE YANG DIPERBAIKI 🔥
   const handleSwipe = (liked: boolean) => {
-    // 1. JANGAN TAMBAH ANTRIAN JIKA SUDAH 50
+    // 1. Cek apakah antrian sudah penuh (Misal user swipe lagi pas error)
     if (queueAddr.length >= 50) {
-        commitSwipes(queueAddr, queueLikes); // Retry kirim
+        // Jangan tambah antrian, langsung coba kirim ulang (Retry)
+        commitSwipes(queueAddr, queueLikes);
         return; 
     }
 
@@ -215,11 +218,16 @@ export default function Home() {
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
+    // 2. Cek Limit 50
     if (newAddr.length >= 50) {
+        // Trigger Transaksi
         commitSwipes(newAddr, newLikes);
-        return; // Tahan kartu ke-50
+        // 🛑 JANGAN HAPUS KARTU DARI LAYAR (Return di sini)
+        // Kartu ke-50 akan tetap terlihat oleh user sampai transaksi sukses
+        return;
     }
     
+    // 3. Jika belum 50, hapus kartu seperti biasa
     setProfiles((prev) => prev.filter(p => p.custody_address !== currentProfile.custody_address));
   };
 
@@ -233,18 +241,27 @@ export default function Home() {
     });
   };
 
+  // 🔥 HAPUS KARTU HANYA JIKA SUKSES 🔥
   useEffect(() => {
     if (isSuccess) {
+      // Reset Antrian
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
-      setProfiles((prev) => prev.length > 0 ? prev.slice(1) : prev);
+      
+      // Hapus kartu ke-50 dari layar (agar user bisa lanjut)
+      setProfiles((prev) => {
+          if (prev.length > 0) return prev.slice(1); 
+          return prev;
+      });
+      
       alert("✅ 50 Swipes Saved! Lanjut Swipe.");
     }
   }, [isSuccess]);
 
   if (!mounted) return null;
 
+  // --- RENDER ---
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -292,9 +309,17 @@ export default function Home() {
       <div className="absolute top-4 right-4 z-20">
          <div className={`px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2 ${isPending ? 'bg-orange-100 border-orange-300' : 'bg-white'}`}>
             {isPending ? (
-                <span className="text-orange-600 font-bold">Confirming...</span>
+                <>
+                    <span className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></span>
+                    <span className="text-orange-600 font-bold">Confirming...</span>
+                </>
             ) : (
-                <span>💾 {queueAddr.length}/50</span>
+                // Tampilkan Error jika gagal (User cancel)
+                txError ? (
+                    <span className="text-red-500 font-bold cursor-pointer" onClick={() => commitSwipes(queueAddr, queueLikes)}>❌ Retry?</span>
+                ) : (
+                    <span>💾 {queueAddr.length}/50</span>
+                )
             )}
          </div>
       </div>
@@ -302,7 +327,8 @@ export default function Home() {
       <div className="relative w-72 h-96 mt-8">
         {isLoadingUsers && filteredProfiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full">
-                <p className="mt-4 text-gray-500 animate-pulse">Finding people...</p>
+                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="mt-4 text-gray-500 animate-pulse">Finding people near blocks...</p>
             </div>
         ) : filteredProfiles.length > 0 ? (
           filteredProfiles.map((profile, index) => {
@@ -327,8 +353,13 @@ export default function Home() {
           })
         ) : (
           <div className="text-center">
-             <p className="text-gray-600 text-lg mb-2">No more profiles!</p>
+             <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
              <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4 shadow">Refresh Users</button>
+             {queueAddr.length > 0 && (
+                 <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow hover:bg-green-700 transition animate-bounce">
+                    Save Pending ({queueAddr.length})
+                 </button>
+             )}
           </div>
         )}
       </div>

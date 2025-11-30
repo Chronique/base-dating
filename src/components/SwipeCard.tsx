@@ -20,7 +20,6 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
-  // Opacity Stamp (Muncul perlahan saat digeser)
   const likeOpacity = useTransform(x, [20, 150], [0, 1]);
   const passOpacity = useTransform(x, [-150, -20], [1, 0]);
 
@@ -39,8 +38,6 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
     } else if (offset < -100 || velocity < -500) {
       await controls.start({ x: -500, opacity: 0, transition: { duration: 0.2 } });
       onSwipe(false);
-    } else {
-      controls.start({ x: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 20 } });
     }
   };
 
@@ -53,39 +50,34 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
       style={{ x, rotate }}
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
-      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
+      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col items-center overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
     >
-      {/* 🔥 PERUBAHAN: STEMPEL DIPINDAHKAN KE LUAR KONTAINER GAMBAR 🔥 */}
-      {/* Stempel sekarang berada di root kartu, bukan di dalam div gambar */}
-      
-      {/* INDIKATOR LIKE (Hijau) */}
-      <motion.div 
-          style={{ opacity: likeOpacity }} 
-          className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-50 text-2xl tracking-widest pointer-events-none shadow-sm"
-      >
-          LIKE
-      </motion.div>
-
-      {/* INDIKATOR NOPE (Merah) */}
-      <motion.div 
-          style={{ opacity: passOpacity }} 
-          className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-50 text-2xl tracking-widest pointer-events-none shadow-sm"
-      >
-          NOPE
-      </motion.div>
-
-      <div className="w-full h-3/4 bg-gray-100 relative">
+      <div className="w-full h-3/4 bg-gray-200 relative">
         <img 
             src={profile.pfpUrl} 
             alt={displayName} 
-            className="w-full h-full object-cover pointer-events-none"
-            loading="eager"
+            className="w-full h-full object-cover pointer-events-none" 
         />
+        
+        {/* 🔥 EFEK BIRU TIPIS KHUSUS BASE USER (STATIS) 🔥 */}
+        {profile.type === 'base' && (
+            <div className="absolute inset-0 bg-blue-500/10 pointer-events-none mix-blend-multiply" />
+        )}
 
         {/* BADGE TIPE USER */}
         <div className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20">
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
+
+        {/* STAMP LIKE */}
+        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
+            LIKE
+        </motion.div>
+
+        {/* STAMP NOPE */}
+        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
+            NOPE
+        </motion.div>
       </div>
 
       <div className="w-full h-1/4 p-4 bg-white flex flex-col justify-center relative z-20">
