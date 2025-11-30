@@ -16,13 +16,13 @@ type Profile = {
 };
 
 export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (liked: boolean) => void }) {
-  // Controls untuk mengatur animasi secara manual
+  // Controls untuk mengatur animasi manual (Fly Away)
   const controls = useAnimation();
   
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
-  // Opacity Stamp (Hanya muncul teks, tanpa overlay warna biar ringan)
+  // Opacity Stamp (Teks LIKE/NOPE)
   const likeOpacity = useTransform(x, [20, 150], [0, 1]);
   const passOpacity = useTransform(x, [-150, -20], [1, 0]);
 
@@ -35,16 +35,25 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
     const offset = info.offset.x;
     const velocity = info.velocity.x;
 
-    // Jika digeser cukup jauh atau dilempar dengan cepat
+    // Jika digeser cukup jauh (>100px) atau dilempar cepat (>500)
     if (offset > 100 || velocity > 500) {
-      // 1. LIKE: Terbangkan kartu ke KANAN luar layar
-      await controls.start({ x: 500, opacity: 0, transition: { duration: 0.2 } });
-      // 2. Baru hapus data
+      // 1. ANIMASI TERBANG KE KANAN (LIKE)
+      await controls.start({ 
+        x: 500, // Lempar jauh ke kanan
+        opacity: 0, 
+        transition: { duration: 0.2 } 
+      });
+      // 2. BARU HAPUS DATA SETELAH SELESAI
       onSwipe(true);
+
     } else if (offset < -100 || velocity < -500) {
-      // 1. PASS: Terbangkan kartu ke KIRI luar layar
-      await controls.start({ x: -500, opacity: 0, transition: { duration: 0.2 } });
-      // 2. Baru hapus data
+      // 1. ANIMASI TERBANG KE KIRI (NOPE)
+      await controls.start({ 
+        x: -500, // Lempar jauh ke kiri
+        opacity: 0, 
+        transition: { duration: 0.2 } 
+      });
+      // 2. BARU HAPUS DATA SETELAH SELESAI
       onSwipe(false);
     }
   };
@@ -54,7 +63,7 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
   return (
     <motion.div
       drag="x"
-      animate={controls} // Sambungkan kontrol animasi
+      animate={controls} // Sambungkan controls ke sini
       style={{ x, rotate }}
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
@@ -72,13 +81,13 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
 
-        {/* STAMP LIKE (Hijau) */}
-        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-30 text-2xl tracking-widest">
+        {/* STAMP LIKE */}
+        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
             LIKE
         </motion.div>
 
-        {/* STAMP NOPE (Merah) */}
-        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-30 text-2xl tracking-widest">
+        {/* STAMP NOPE */}
+        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
             NOPE
         </motion.div>
       </div>
