@@ -19,12 +19,12 @@ import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 type FarcasterUser = {
   fid: number;
   username: string;
-  pfp_url: string; // <--- PASTIKAN INI pfp_url
+  pfp_url: string;
   custody_address: string;
   display_name: string;
-  bio: string; 
+  bio: string;
   gender: 'male' | 'female';
-  type: 'farcaster' | 'base';
+  type: 'farcaster';
 };
 
 function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
@@ -87,11 +87,14 @@ export default function Home() {
           if (savedGender) setMyGender(savedGender as 'male' | 'female');
       }
       setIsStorageLoaded(true);
+
       try {
         const ctx = await sdk.context;
         setContext(ctx);
         sdk.actions.ready();
-      } catch (err) { console.log("Browser Mode"); }
+      } catch (err) {
+        console.log("Browser Mode");
+      }
     };
     initFast();
   }, []);
@@ -103,24 +106,47 @@ export default function Home() {
       setIsLoadingUsers(true);
       try {
         const randomStart = Math.floor(Math.random() * 10000) + 1;
-        const randomFids = Array.from({ length: 70 }, (_, i) => randomStart + i).join(',');
+        const randomFids = Array.from({ length: 50 }, (_, i) => randomStart + i).join(',');
+
         const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${randomFids}`, {
-            headers: { accept: 'application/json', api_key: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || 'NEYNAR_API_DOCS' }
+            headers: {
+                accept: 'application/json',
+                api_key: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || 'NEYNAR_API_DOCS'
+            }
         });
+
         const data = await response.json();
+        let combinedUsers: FarcasterUser[] = [];
+
         if (data.users) {
-            const fcUsers: FarcasterUser[] = data.users.map((u: any, index: number) => ({
-                fid: u.fid, username: u.username, display_name: u.display_name, 
-                pfp_url: u.pfp_url, // Gunakan pfp_url
+            const fcUsers = data.users.map((u: any, index: number) => ({
+                fid: u.fid,
+                username: u.username,
+                display_name: u.display_name,
+                pfp_url: u.pfp_url,
                 bio: u.profile?.bio?.text || `Farcaster OG @${u.username}`, 
                 custody_address: u.verified_addresses.eth_addresses[0] || u.custody_address,
-                gender: index % 2 === 0 ? 'female' : 'male', type: 'farcaster' as const
+                gender: index % 2 === 0 ? 'female' : 'male',
+                type: 'farcaster' as const
             }));
-            const cleanUsers = fcUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address.startsWith('0x') && u.custody_address !== '0x0000000000000000000000000000000000000000');
-            cleanUsers.sort(() => Math.random() - 0.5);
-            setProfiles(cleanUsers);
+            combinedUsers = [...fcUsers];
         }
-      } catch (e) { console.error(e); } finally { setIsLoadingUsers(false); }
+        
+        // Filter Bersih
+        const cleanUsers = combinedUsers.filter(u => 
+            u.pfp_url && 
+            u.custody_address && 
+            u.custody_address.startsWith('0x') &&
+            u.custody_address !== '0x0000000000000000000000000000000000000000'
+        );
+
+        cleanUsers.sort(() => Math.random() - 0.5);
+        setProfiles(cleanUsers);
+      } catch (e) {
+        console.error("Gagal fetch user:", e);
+      } finally {
+        setIsLoadingUsers(false);
+      }
     };
     if (mounted) fetchUsersBg();
   }, [mounted]);
@@ -164,26 +190,33 @@ export default function Home() {
     },
   });
 
-  // LOGIKA SWIPE
-  const handleSwipe = (dir: string, profile: FarcasterUser) => {
-    const liked = dir === 'right';
-    console.log("Swiped:", dir, "Liked:", liked);
+  // 🔥 LOGIKA SWIPE YANG DIPERBAIKI (AGAR CARD KE-50 GAK HILANG) 🔥
+  const handleSwipe = (liked: boolean) => {
+    // Cek apakah antrian sudah penuh sebelum menambah
+    if (queueAddr.length >= 50) {
+        commitSwipes(queueAddr, queueLikes); // Coba kirim ulang
+        return; // STOP! Jangan lakukan apa-apa lagi
+    }
 
-    if (queueAddr.length >= 50) return; 
-
-    const newAddr = [...queueAddr, profile.custody_address];
+    if (filteredProfiles.length === 0) return;
+    const currentProfile = filteredProfiles[0];
+    
+    const newAddr = [...queueAddr, currentProfile.custody_address];
     const newLikes = [...queueLikes, liked];
     
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
+    // Jika pas swipe ini mencapai angka 50
     if (newAddr.length >= 50) {
-        commitSwipes(newAddr, newLikes);
+        commitSwipes(newAddr, newLikes); // Munculkan Pop-up
+        // STOP! Jangan hapus profil dari layar.
+        // Biarkan kartu terakhir tetap terlihat sampai transaksi sukses/gagal.
+        return; 
     }
-  };
-
-  const handleCardLeftScreen = (identifier: string) => {
-    setProfiles((prev) => prev.filter(p => p.custody_address !== identifier));
+    
+    // Jika belum 50, hapus kartu dan lanjut
+    setProfiles((prev) => prev.filter(p => p.custody_address !== currentProfile.custody_address));
   };
 
   const commitSwipes = (addrs: string[], likes: boolean[]) => {
@@ -196,48 +229,51 @@ export default function Home() {
     });
   };
 
+  // 🔥 HAPUS KARTU & ANTRIAN HANYA JIKA SUKSES 🔥
   useEffect(() => {
     if (isSuccess) {
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
-      setProfiles((prev) => prev.length > 0 ? prev.slice(1) : prev);
-      alert("✅ Swipes Saved! Gas Payment Successful.");
+      
+      // Baru hapus kartu ke-50 dari layar setelah sukses
+      setProfiles((prev) => {
+          if (prev.length > 0) return prev.slice(1); 
+          return prev;
+      });
+      
+      alert("✅ 50 Swipes Saved! Keep Swiping.");
     }
   }, [isSuccess]);
 
   if (!mounted) return null;
 
-  if (!isConnected) return (
+  if (!isConnected) {
+    return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
-            {context && !connectError ? (
-                <div className="animate-pulse flex flex-col items-center">
-                    <div className="w-16 h-16 bg-gray-200 rounded-full mb-4 animate-spin"></div>
-                    <p className="text-gray-500 font-bold">Connecting...</p>
-                </div>
-            ) : (
-                <>
-                    <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
-                    <div className="flex flex-col gap-3 w-full max-w-xs">
-                        {filteredConnectors.map((connector) => (
-                            <button key={connector.uid} onClick={() => connect({ connector })} className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
-                            Connect {connector.id === 'injected' ? 'Farcaster Wallet' : connector.name}
-                            </button>
-                        ))}
-                    </div>
-                </>
-            )}
+            <h1 className="text-4xl font-bold text-blue-600 mb-2">Base Dating 🔵</h1>
+            <div className="flex flex-col gap-3 w-full max-w-xs">
+                {filteredConnectors.map((connector) => (
+                    <button key={connector.uid} onClick={() => connect({ connector })} className="bg-white border-2 border-blue-600 text-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-50 transition">
+                    Connect {connector.id === 'injected' ? 'Farcaster Wallet' : connector.name}
+                    </button>
+                ))}
+            </div>
         </main>
     );
+  }
 
-  if (isWrongNetwork) return (
+  if (isWrongNetwork) {
+    return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-red-50 p-4 text-center">
             <h2 className="text-2xl font-bold text-red-600 mb-2">Wrong Network ⚠️</h2>
             <button onClick={() => switchChain({ chainId: base.id })} className="bg-red-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-red-700">🔀 Switch Network</button>
         </main>
     );
+  }
 
-  if (!myGender) return (
+  if (!myGender) {
+      return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
             <div className="flex flex-col gap-4 w-full max-w-xs">
                 <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👨 Man</button>
@@ -245,6 +281,7 @@ export default function Home() {
             </div>
         </main>
       );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 pb-32 relative overflow-hidden">
@@ -258,9 +295,16 @@ export default function Home() {
       <div className="absolute top-4 right-4 z-20">
          <div className={`px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2 ${isPending ? 'bg-orange-100 border-orange-300' : 'bg-white'}`}>
             {isPending ? (
-                <span className="text-orange-600 font-bold">Confirming...</span>
+                <>
+                    <span className="w-2 h-2 bg-orange-500 rounded-full animate-ping"></span>
+                    <span className="text-orange-600 font-bold">Confirming...</span>
+                </>
             ) : (
-                txError ? <span className="text-red-500 font-bold cursor-pointer" onClick={() => commitSwipes(queueAddr, queueLikes)}>❌ Retry?</span> : <span>💾 {queueAddr.length}/50</span>
+                txError ? (
+                    <span className="text-red-500 font-bold cursor-pointer" onClick={() => commitSwipes(queueAddr, queueLikes)}>❌ Retry?</span>
+                ) : (
+                    <span>💾 {queueAddr.length}/50</span>
+                )
             )}
          </div>
       </div>
@@ -272,14 +316,26 @@ export default function Home() {
                 <p className="mt-4 text-gray-500 animate-pulse">Finding people...</p>
             </div>
         ) : filteredProfiles.length > 0 ? (
-          filteredProfiles.map((profile) => (
-             <SwipeCard 
-                key={profile.custody_address}
-                profile={profile} 
-                onSwipe={(dir) => handleSwipe(dir, profile)} 
-                onCardLeftScreen={handleCardLeftScreen}
-             />
-          ))
+          filteredProfiles.map((profile, index) => {
+            return (
+              <div key={profile.custody_address} className={`absolute top-0 left-0 w-full h-full transition-all duration-300 ${index === 0 ? "z-10" : "z-0 scale-95 opacity-50 translate-y-4"}`}>
+                <div className="relative w-full h-full">
+                    <SwipeCard 
+                        profile={{ 
+                            fid: profile.fid, 
+                            username: profile.display_name, 
+                            bio: `🟣 Farcaster | ${profile.gender === 'male' ? '👨' : '👩'} @${profile.username}`, 
+                            pfpUrl: profile.pfp_url,
+                            custody_address: profile.custody_address,
+                            gender: profile.gender,
+                            type: profile.type
+                        }} 
+                        onSwipe={handleSwipe} 
+                    />
+                </div>
+              </div>
+            );
+          })
         ) : (
           <div className="text-center">
              <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
@@ -288,6 +344,7 @@ export default function Home() {
         )}
       </div>
 
+      {/* TOMBOL MANUAL SUBMIT */}
       {queueAddr.length > 0 && (
           <div className="fixed bottom-8 w-full flex justify-center z-50 px-4">
             <button 
@@ -299,7 +356,11 @@ export default function Home() {
                         : "bg-black hover:bg-gray-800"
                 } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
             >
-                {isPending ? "⏳ Processing..." : (queueAddr.length >= 50 ? "⛽ Pay Gas to Continue Swiping" : `Save Progress (${queueAddr.length})`)}
+                {isPending ? (
+                    <>⏳ Processing...</>
+                ) : (
+                    txError ? "🔄 Retry Gas Payment" : (queueAddr.length >= 50 ? "⛽ Pay Gas & Continue" : `Save Progress (${queueAddr.length})`)
+                )}
             </button>
           </div>
       )}
