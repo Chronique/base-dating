@@ -70,6 +70,7 @@ export default function Home() {
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
+  // Helper Generate User
   const generateBaseUsers = (count: number): FarcasterUser[] => {
     return Array.from({ length: count }).map((_, i) => {
         const randomAddr = '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
@@ -198,6 +199,7 @@ export default function Home() {
     },
   });
 
+  // LOGIKA SWIPE
   const handleSwipe = (liked: boolean) => {
     if (queueAddr.length >= 50) {
         commitSwipes(queueAddr, queueLikes); 
@@ -231,6 +233,7 @@ export default function Home() {
     });
   };
 
+  // 🔥 UPDATE DISINI: UBAH TEXT ALERT JADI BAHASA INGGRIS 🔥
   useEffect(() => {
     if (isSuccess) {
       setQueueAddr([]);
@@ -242,12 +245,13 @@ export default function Home() {
           return prev;
       });
       
-      alert("✅ 50 Swipes Saved! Lanjut Swipe.");
+      alert("✅ 50 Swipes Saved! Keep Swiping."); // English
     }
   }, [isSuccess]);
 
   if (!mounted) return null;
 
+  // --- RENDER ---
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -284,7 +288,6 @@ export default function Home() {
   }
 
   return (
-    // 🔥 UPDATE: Tambahkan padding-bottom agar konten tidak tertutup tombol
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 pb-24 relative overflow-hidden">
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
@@ -301,7 +304,7 @@ export default function Home() {
                     <span className="text-orange-600 font-bold">Confirming...</span>
                 </>
             ) : (
-                // Tampilkan Error jika gagal (User cancel)
+                // Tampilkan Error jika gagal
                 txError ? (
                     <span className="text-red-500 font-bold cursor-pointer" onClick={() => commitSwipes(queueAddr, queueLikes)}>❌ Retry?</span>
                 ) : (
@@ -346,7 +349,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* 🔥 TOMBOL MANUAL SUBMIT 🔥 */}
+      {/* 🔥 UPDATE DISINI: TOMBOL GANTI TEKS 🔥 */}
       {queueAddr.length > 0 && (
           <div className="fixed bottom-8 w-full flex justify-center z-50 px-4">
             <button 
@@ -361,7 +364,8 @@ export default function Home() {
                 {isPending ? (
                     <>⏳ Processing...</>
                 ) : (
-                    queueAddr.length >= 50 ? "PAY GAS TO MORE SWIPE" : `Save Progress (${queueAddr.length})`
+                    // 👇 TEKS BAHASA INGGRIS SESUAI REQUEST
+                    queueAddr.length >= 50 ? "⛽ Pay Gas to Continue Swiping" : `Save Progress (${queueAddr.length})`
                 )}
             </button>
           </div>
