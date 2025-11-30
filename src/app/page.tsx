@@ -2,7 +2,16 @@
 
 import { useState, useEffect, useRef } from "react";
 import sdk from "@farcaster/frame-sdk";
-import { useWriteContract, useWaitForTransactionReceipt, useAccount, useConnect, useWatchContractEvent, useChainId, useSwitchChain } from "wagmi";
+import { 
+  useWriteContract, 
+  useWaitForTransactionReceipt, 
+  useAccount, 
+  useConnect, 
+  useWatchContractEvent, 
+  useChainId, 
+  useSwitchChain,
+  useBalance // <--- useBalance
+} from "wagmi";
 import { base } from "wagmi/chains"; 
 import { SwipeCard } from "../components/SwipeCard"; 
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
@@ -31,14 +40,15 @@ export default function Home() {
   // QUEUE STATE
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
-  
-  // 🔥 STATE BARU: Penanda apakah storage sudah dimuat
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
 
   // Wagmi Hooks
   const { isConnected, address } = useAccount();
   const { connectors, connect, error: connectError } = useConnect();
   
+  // 🔥 CEK BALANCE USER 🔥
+  const { data: balance } = useBalance({ address });
+
   // Ref untuk Auto Connect
   const hasAttemptedAutoConnect = useRef(false);
 
@@ -59,7 +69,7 @@ export default function Home() {
     const initApp = async () => {
       setMounted(true);
 
-      // --- A. RESTORE DATA DARI HP (Agar tidak reset) ---
+      // A. Restore Storage
       if (typeof window !== 'undefined') {
           const savedQueue = localStorage.getItem('baseDatingQueue');
           const savedGender = localStorage.getItem('baseDatingGender');
@@ -70,18 +80,14 @@ export default function Home() {
                   if (parsed.addrs && parsed.likes) {
                       setQueueAddr(parsed.addrs);
                       setQueueLikes(parsed.likes);
-                      console.log("📂 Data restored:", parsed.addrs.length);
                   }
-              } catch (e) { console.error("Storage error", e); }
+              } catch (e) {}
           }
-
-          if (savedGender) {
-              setMyGender(savedGender as 'male' | 'female');
-          }
+          if (savedGender) setMyGender(savedGender as 'male' | 'female');
       }
-      setIsStorageLoaded(true); // Data lama sudah dimuat!
+      setIsStorageLoaded(true);
 
-      // --- B. FETCH USER BARU ---
+      // B. Fetch Users
       setIsLoadingUsers(true);
       try {
         const randomStart = Math.floor(Math.random() * 20000) + 1;
@@ -95,7 +101,6 @@ export default function Home() {
         });
 
         const data = await response.json();
-        
         if (data.users) {
             const realUsers: FarcasterUser[] = data.users.map((u: any, index: number) => {
                 const wallet = u.verified_addresses.eth_addresses[0] || u.custody_address;
@@ -108,10 +113,7 @@ export default function Home() {
                     gender: index % 2 === 0 ? 'female' : 'male' 
                 };
             });
-
             const cleanUsers = realUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address !== '0x0000000000000000000000000000000000000000');
-            // Filter agar user yang sudah di-swipe tidak muncul lagi (cek queueAddr)
-            // Note: queueAddr belum terisi penuh saat baris ini jalan pertama kali, tapi tidak fatal.
             setProfiles(cleanUsers);
         }
       } catch (e) {
@@ -120,53 +122,43 @@ export default function Home() {
         setIsLoadingUsers(false);
       }
 
-      // --- C. INIT FARCASTER SDK ---
+      // C. Init Farcaster SDK
       try {
         const ctx = await sdk.context;
         setContext(ctx);
         sdk.actions.ready(); 
-      } catch (err) {
-        console.log("Browser Mode");
-      }
+      } catch (err) {}
     };
 
     if (sdk && !mounted) initApp();
   }, [mounted]);
 
-  // 2. 🔥 AUTO SAVE KE HP (Setiap kali swipe) 🔥
+  // 2. AUTO SAVE
   useEffect(() => {
-    // Hanya save jika storage awal sudah selesai dimuat (mencegah overwrite kosong)
     if (isStorageLoaded && typeof window !== 'undefined') {
         const data = { addrs: queueAddr, likes: queueLikes };
         localStorage.setItem('baseDatingQueue', JSON.stringify(data));
-        
-        if (myGender) {
-            localStorage.setItem('baseDatingGender', myGender);
-        }
+        if (myGender) localStorage.setItem('baseDatingGender', myGender);
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 3. AUTO CONNECT (Robust)
+  // 3. AUTO CONNECT
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
         const timer = setTimeout(() => {
             const farcasterWallet = connectors.find(c => c.id === 'injected');
-            if (farcasterWallet) {
-                console.log("🔄 Auto-connecting...");
-                connect({ connector: farcasterWallet });
-            }
+            if (farcasterWallet) connect({ connector: farcasterWallet });
         }, 700);
         return () => clearTimeout(timer);
     }
   }, [mounted, context, isConnected, connectors, connect]);
 
-  // 4. FILTER PROFILES
+  // 4. FILTER
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
-    // Tambahan filter: Jangan tampilkan user yang SUDAH ada di antrian swipe
     .filter(p => !queueAddr.includes(p.custody_address));
 
-  // 5. WATCH MATCHES
+  // 5. MATCH EVENT
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -197,7 +189,6 @@ export default function Home() {
         commitSwipes(newAddr, newLikes);
     }
     
-    // Hapus dari state profiles lokal juga
     setProfiles((prev) => prev.filter(p => p.fid !== currentProfile.fid));
   };
 
@@ -207,16 +198,15 @@ export default function Home() {
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: DATING_ABI,
       functionName: 'batchSwipe',
-      args: [addrs as any, likes], // Type fix
+      args: [addrs as any, likes], 
     });
   };
 
-  // 🔥 BERSIHKAN DATA HP JIKA SUKSES 🔥
   useEffect(() => {
     if (isSuccess) {
       setQueueAddr([]);
       setQueueLikes([]);
-      localStorage.removeItem('baseDatingQueue'); // Hapus data sementara di HP
+      localStorage.removeItem('baseDatingQueue');
       alert("✅ 50 Swipes Saved On-Chain!");
     }
   }, [isSuccess]);
@@ -225,7 +215,7 @@ export default function Home() {
 
   // --- RENDER ---
 
-  // A. LOGIN SCREEN
+  // A. LOGIN
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -267,7 +257,7 @@ export default function Home() {
   // C. GENDER SELECTION
   if (!myGender) {
       return (
-        <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center animate-in fade-in zoom-in duration-500">
+        <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
             <h2 className="text-3xl font-bold text-gray-800 mb-8">I am a...</h2>
             <div className="flex flex-col gap-4 w-full max-w-xs">
                 <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👨 Man</button>
@@ -277,17 +267,21 @@ export default function Home() {
       );
   }
 
-  // D. MAIN SWIPE
+  // D. MAIN SWIPE (Dengan Balance Checker)
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative">
-      <div className="absolute top-4 w-full px-4 flex justify-between items-center z-20">
-         <h1 className="text-xl font-bold text-blue-600">Base Dating</h1>
+      
+      {/* 🔥 INDIKATOR SALDO & STATUS (Pojok Kiri Atas) 🔥 */}
+      <div className="absolute top-4 left-4 z-50">
+         <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm">
+            💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : 'Loading...'}
+         </div>
+      </div>
+
+      {/* STATUS SWIPE (Pojok Kanan Atas) */}
+      <div className="absolute top-4 right-4 z-20">
          <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border">
-            {isPending ? (
-                <span className="text-orange-500 animate-pulse">⏳ Saving...</span>
-            ) : (
-                <span>💾 Pending: {queueAddr.length}/50</span>
-            )}
+            {isPending ? <span className="text-orange-500 animate-pulse">⏳ Saving...</span> : <span>💾 {queueAddr.length}/50</span>}
          </div>
       </div>
 
@@ -319,7 +313,6 @@ export default function Home() {
           <div className="text-center">
              <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
              <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4">Refresh Users</button>
-             
              {queueAddr.length > 0 && (
                  <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow">
                     Save Pending ({queueAddr.length})
