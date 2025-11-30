@@ -19,19 +19,19 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
-  // 🔥 PERBAIKAN WARNA (OVERLAY) 🔥
-  // Kiri (-150): Merah Transparan
-  // Tengah (0): Bening/Transparan (PENTING!)
-  // Kanan (150): Hijau Transparan
-  const overlayColor = useTransform(x, [-150, 0, 150], [
-    "rgba(239, 68, 68, 0.5)", // Red (Pass)
-    "rgba(0, 0, 0, 0)",       // Transparent (Idle)
-    "rgba(34, 197, 94, 0.5)"  // Green (Like)
-  ]);
+  // 🔥 SOLUSI BARU: 2 Layer Opacity Terpisah (Lebih Stabil) 🔥
+  
+  // 1. Opacity Layer Hijau (Muncul saat geser KANAN > 0)
+  const likeOverlayOpacity = useTransform(x, [0, 150], [0, 0.5]);
+  
+  // 2. Opacity Layer Merah (Muncul saat geser KIRI < 0)
+  // Input: -150 (Kiri Mentok) -> 0 (Tengah)
+  // Output: 0.5 (Merah Jelas) -> 0 (Hilang)
+  const passOverlayOpacity = useTransform(x, [-150, 0], [0.5, 0]);
 
-  // Opacity Stamp (Tulisan LIKE/PASS)
-  const likeOpacity = useTransform(x, [50, 150], [0, 1]);
-  const passOpacity = useTransform(x, [-150, -50], [1, 0]);
+  // Opacity Text Stamp
+  const likeTextOpacity = useTransform(x, [50, 150], [0, 1]);
+  const passTextOpacity = useTransform(x, [-150, -50], [1, 0]);
 
   // Fetch Basename
   const { data: basename } = useName({ 
@@ -51,7 +51,7 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
 
   return (
     <motion.div
-      style={{ x, rotate }} // Hapus background dari sini
+      style={{ x, rotate }}
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
@@ -64,11 +64,16 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
             className="w-full h-full object-cover pointer-events-none" 
         />
         
-        {/* 🔥 LAPISAN WARNA (OVERLAY) 🔥 */}
-        {/* Ini yang bikin efek warna di atas foto */}
+        {/* 🔥 LAYER 1: MERAH (PASS) 🔥 */}
         <motion.div 
-            style={{ backgroundColor: overlayColor }}
-            className="absolute inset-0 z-10 pointer-events-none"
+            style={{ opacity: passOverlayOpacity }}
+            className="absolute inset-0 z-10 bg-red-500 pointer-events-none"
+        />
+
+        {/* 🔥 LAYER 2: HIJAU (LIKE) 🔥 */}
+        <motion.div 
+            style={{ opacity: likeOverlayOpacity }}
+            className="absolute inset-0 z-10 bg-green-500 pointer-events-none"
         />
 
         {/* BADGE TIPE USER */}
@@ -76,13 +81,13 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
 
-        {/* INDIKATOR LIKE */}
-        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-2 rounded transform -rotate-12 bg-white/90 z-20">
+        {/* INDIKATOR LIKE TEXT */}
+        <motion.div style={{ opacity: likeTextOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-2 rounded transform -rotate-12 bg-white/90 z-30">
             LIKE
         </motion.div>
 
-        {/* INDIKATOR PASS */}
-        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-2 rounded transform rotate-12 bg-white/90 z-20">
+        {/* INDIKATOR PASS TEXT */}
+        <motion.div style={{ opacity: passTextOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-2 rounded transform rotate-12 bg-white/90 z-30">
             PASS
         </motion.div>
       </div>
