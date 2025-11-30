@@ -20,6 +20,7 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
+  // Opacity Stamp
   const likeOpacity = useTransform(x, [20, 150], [0, 1]);
   const passOpacity = useTransform(x, [-150, -20], [1, 0]);
 
@@ -38,6 +39,9 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
     } else if (offset < -100 || velocity < -500) {
       await controls.start({ x: -500, opacity: 0, transition: { duration: 0.2 } });
       onSwipe(false);
+    } else {
+      // Kembali ke tengah jika tidak jadi swipe
+      controls.start({ x: 0, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 20 } });
     }
   };
 
@@ -50,27 +54,25 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
       style={{ x, rotate }}
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
-      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
+      // 🔥 FIX: Hapus 'will-change' yang kadang bikin glitch di beberapa browser
+      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing"
     >
-      {/* 🔥 POSISI BARU: Di luar kotak gambar, langsung di layer kartu utama 🔥 */}
-      
-      {/* INDIKATOR LIKE (Hijau) */}
+      {/* STAMP LIKE (Hijau) - Tanpa Background Transparan */}
       <motion.div 
           style={{ opacity: likeOpacity }} 
-          className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg -rotate-12 z-50 text-2xl tracking-widest bg-white/80 pointer-events-none"
+          className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg -rotate-12 z-50 text-2xl tracking-widest"
       >
           LIKE
       </motion.div>
 
-      {/* INDIKATOR NOPE (Merah) */}
+      {/* STAMP NOPE (Merah) - Tanpa Background Transparan */}
       <motion.div 
           style={{ opacity: passOpacity }} 
-          className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg rotate-12 z-50 text-2xl tracking-widest bg-white/80 pointer-events-none"
+          className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg rotate-12 z-50 text-2xl tracking-widest"
       >
           NOPE
       </motion.div>
 
-      {/* KOTAK GAMBAR (Sekarang bersih tanpa stempel di dalamnya) */}
       <div className="w-full h-3/4 bg-gray-100 relative">
         <img 
             src={profile.pfpUrl} 
@@ -79,13 +81,12 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
             loading="eager"
         />
 
-        {/* BADGE TIPE USER */}
-        <div className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20">
+        {/* BADGE TIPE USER - FIX: Hapus Backdrop Blur (Penyebab Glitch) */}
+        <div className="absolute top-3 left-3 px-3 py-1 bg-gray-900 rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20 opacity-90">
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
       </div>
 
-      {/* INFO USER */}
       <div className="w-full h-1/4 p-4 bg-white flex flex-col justify-center relative z-20">
         <div className="flex items-center gap-2 mb-1">
             <h2 className="text-xl font-bold text-gray-800 truncate max-w-[180px]">
