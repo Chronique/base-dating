@@ -180,8 +180,6 @@ export default function Home() {
   }, [mounted, context, isConnected, connectors, connect]);
 
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
-    // Filter: Jangan tampilkan user yg sudah ada di antrian, KECUALI jika antrian penuh (50)
-    // Ini supaya kartu ke-50 tetap muncul kalau belum sukses dikirim
     .filter(p => queueAddr.length < 50 ? !queueAddr.includes(p.custody_address) : true);
 
   useWatchContractEvent({
@@ -200,12 +198,9 @@ export default function Home() {
     },
   });
 
-  // 🔥 LOGIKA SWIPE YANG DIPERBAIKI 🔥
   const handleSwipe = (liked: boolean) => {
-    // 1. Cek apakah antrian sudah penuh (Misal user swipe lagi pas error)
     if (queueAddr.length >= 50) {
-        // Jangan tambah antrian, langsung coba kirim ulang (Retry)
-        commitSwipes(queueAddr, queueLikes);
+        commitSwipes(queueAddr, queueLikes); 
         return; 
     }
 
@@ -218,16 +213,11 @@ export default function Home() {
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
-    // 2. Cek Limit 50
     if (newAddr.length >= 50) {
-        // Trigger Transaksi
         commitSwipes(newAddr, newLikes);
-        // 🛑 JANGAN HAPUS KARTU DARI LAYAR (Return di sini)
-        // Kartu ke-50 akan tetap terlihat oleh user sampai transaksi sukses
-        return;
+        return; 
     }
     
-    // 3. Jika belum 50, hapus kartu seperti biasa
     setProfiles((prev) => prev.filter(p => p.custody_address !== currentProfile.custody_address));
   };
 
@@ -241,27 +231,23 @@ export default function Home() {
     });
   };
 
-  // 🔥 HAPUS KARTU HANYA JIKA SUKSES 🔥
   useEffect(() => {
     if (isSuccess) {
-      // Reset Antrian
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
       
-      // Hapus kartu ke-50 dari layar (agar user bisa lanjut)
       setProfiles((prev) => {
           if (prev.length > 0) return prev.slice(1); 
           return prev;
       });
       
-      alert("Your payments have been recorded successfully!");
+      alert("✅ 50 Swipes Saved! Lanjut Swipe.");
     }
   }, [isSuccess]);
 
   if (!mounted) return null;
 
-  // --- RENDER ---
   if (!isConnected) {
     return (
         <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
@@ -298,7 +284,8 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    // 🔥 UPDATE: Tambahkan padding-bottom agar konten tidak tertutup tombol
+    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 pb-24 relative overflow-hidden">
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
       <div className="absolute top-4 left-4 z-20">
@@ -355,31 +342,26 @@ export default function Home() {
           <div className="text-center">
              <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
              <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4 shadow">Refresh Users</button>
-             {queueAddr.length > 0 && (
-                 <button onClick={() => commitSwipes(queueAddr, queueLikes)} className="block mx-auto bg-green-600 text-white px-6 py-2 rounded-full shadow hover:bg-green-700 transition animate-bounce">
-                    Save Pending ({queueAddr.length})
-                 </button>
-             )}
           </div>
         )}
       </div>
 
-  {/* 🔥 TOMBOL MANUAL SUBMIT (MUNCUL JIKA ADA ANTRIAN) 🔥 */}
+      {/* 🔥 TOMBOL MANUAL SUBMIT 🔥 */}
       {queueAddr.length > 0 && (
           <div className="fixed bottom-8 w-full flex justify-center z-50 px-4">
             <button 
                 onClick={() => commitSwipes(queueAddr, queueLikes)} 
-                disabled={isPending} // Disable saat loading
+                disabled={isPending}
                 className={`w-full max-w-xs py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${
                     queueAddr.length >= 50 
-                        ? "bg-red-600 animate-bounce" // Merah & Mental kalau penuh
-                        : "bg-black hover:bg-gray-800" // Hitam biasa kalau belum penuh
+                        ? "bg-red-600 animate-bounce" 
+                        : "bg-black hover:bg-gray-800"
                 } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
             >
                 {isPending ? (
                     <>⏳ Processing...</>
                 ) : (
-                    queueAddr.length >= 50 ? "MORE SWIPE? PAY NOW (ONLY GAS)" : `Save Progress (${queueAddr.length})`
+                    queueAddr.length >= 50 ? "PAY GAS TO MORE SWIPE" : `Save Progress (${queueAddr.length})`
                 )}
             </button>
           </div>
