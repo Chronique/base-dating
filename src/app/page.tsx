@@ -202,7 +202,7 @@ export default function Home() {
     setQueueAddr(newAddr);
     setQueueLikes(newLikes);
 
-    if (newAddr.length >= 50) {
+    if (newAddr.length >= 5) {
         commitSwipes(newAddr, newLikes);
     }
     
@@ -296,7 +296,7 @@ export default function Home() {
       </div>
       <div className="absolute top-4 right-4 z-20">
          <div className="bg-white px-3 py-1 rounded-full shadow text-sm font-mono border">
-            {isPending ? <span className="text-orange-500 animate-pulse">⏳ Saving...</span> : <span>💾 {queueAddr.length}/50</span>}
+            {isPending ? <span className="text-orange-500 animate-pulse">⏳ Saving...</span> : <span>💾 {queueAddr.length}/5</span>}
          </div>
       </div>
 
