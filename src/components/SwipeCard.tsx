@@ -16,13 +16,10 @@ type Profile = {
 };
 
 export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (liked: boolean) => void }) {
-  // Controls untuk mengatur animasi manual (Fly Away)
   const controls = useAnimation();
-  
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
-  // Opacity Stamp (Teks LIKE/NOPE)
   const likeOpacity = useTransform(x, [20, 150], [0, 1]);
   const passOpacity = useTransform(x, [-150, -20], [1, 0]);
 
@@ -35,25 +32,11 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
     const offset = info.offset.x;
     const velocity = info.velocity.x;
 
-    // Jika digeser cukup jauh (>100px) atau dilempar cepat (>500)
     if (offset > 100 || velocity > 500) {
-      // 1. ANIMASI TERBANG KE KANAN (LIKE)
-      await controls.start({ 
-        x: 500, // Lempar jauh ke kanan
-        opacity: 0, 
-        transition: { duration: 0.2 } 
-      });
-      // 2. BARU HAPUS DATA SETELAH SELESAI
+      await controls.start({ x: 500, opacity: 0, transition: { duration: 0.2 } });
       onSwipe(true);
-
     } else if (offset < -100 || velocity < -500) {
-      // 1. ANIMASI TERBANG KE KIRI (NOPE)
-      await controls.start({ 
-        x: -500, // Lempar jauh ke kiri
-        opacity: 0, 
-        transition: { duration: 0.2 } 
-      });
-      // 2. BARU HAPUS DATA SETELAH SELESAI
+      await controls.start({ x: -500, opacity: 0, transition: { duration: 0.2 } });
       onSwipe(false);
     }
   };
@@ -63,35 +46,46 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
   return (
     <motion.div
       drag="x"
-      animate={controls} // Sambungkan controls ke sini
+      animate={controls}
       style={{ x, rotate }}
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
-      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col items-center overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
+      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
     >
-      <div className="w-full h-3/4 bg-gray-200 relative">
+      {/* 🔥 POSISI BARU: Di luar kotak gambar, langsung di layer kartu utama 🔥 */}
+      
+      {/* INDIKATOR LIKE (Hijau) */}
+      <motion.div 
+          style={{ opacity: likeOpacity }} 
+          className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg -rotate-12 z-50 text-2xl tracking-widest bg-white/80 pointer-events-none"
+      >
+          LIKE
+      </motion.div>
+
+      {/* INDIKATOR NOPE (Merah) */}
+      <motion.div 
+          style={{ opacity: passOpacity }} 
+          className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg rotate-12 z-50 text-2xl tracking-widest bg-white/80 pointer-events-none"
+      >
+          NOPE
+      </motion.div>
+
+      {/* KOTAK GAMBAR (Sekarang bersih tanpa stempel di dalamnya) */}
+      <div className="w-full h-3/4 bg-gray-100 relative">
         <img 
             src={profile.pfpUrl} 
             alt={displayName} 
-            className="w-full h-full object-cover pointer-events-none" 
+            className="w-full h-full object-cover pointer-events-none"
+            loading="eager"
         />
 
         {/* BADGE TIPE USER */}
         <div className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20">
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
-
-        {/* STAMP LIKE */}
-        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
-            LIKE
-        </motion.div>
-
-        {/* STAMP NOPE */}
-        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
-            NOPE
-        </motion.div>
       </div>
 
+      {/* INFO USER */}
       <div className="w-full h-1/4 p-4 bg-white flex flex-col justify-center relative z-20">
         <div className="flex items-center gap-2 mb-1">
             <h2 className="text-xl font-bold text-gray-800 truncate max-w-[180px]">
