@@ -15,12 +15,12 @@ type Profile = {
   type?: 'farcaster' | 'base';
 };
 
-// Tambah prop 'disabled'
-export function SwipeCard({ profile, onSwipe, disabled }: { profile: Profile, onSwipe: (liked: boolean) => void, disabled?: boolean }) {
+export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (liked: boolean) => void }) {
   const controls = useAnimation();
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
+  // Opacity Stamp (Muncul perlahan saat digeser)
   const likeOpacity = useTransform(x, [20, 150], [0, 1]);
   const passOpacity = useTransform(x, [-150, -20], [1, 0]);
 
@@ -30,8 +30,6 @@ export function SwipeCard({ profile, onSwipe, disabled }: { profile: Profile, on
   });
 
   const handleDragEnd = async (event: any, info: PanInfo) => {
-    if (disabled) return; // Jangan jalan kalau disabled
-
     const offset = info.offset.x;
     const velocity = info.velocity.x;
 
@@ -50,15 +48,32 @@ export function SwipeCard({ profile, onSwipe, disabled }: { profile: Profile, on
 
   return (
     <motion.div
-      // 🔥 LOGIC LOCK: Kalau disabled, matikan drag 🔥
-      drag={disabled ? false : "x"}
+      drag="x"
       animate={controls}
       style={{ x, rotate }}
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
-      // Tambahkan visual feedback (cursor-not-allowed / grayscale) jika disabled
-      className={`absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 ${disabled ? 'cursor-not-allowed grayscale opacity-80' : 'cursor-grab active:cursor-grabbing'}`}
+      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
     >
+      {/* 🔥 PERUBAHAN: STEMPEL DIPINDAHKAN KE LUAR KONTAINER GAMBAR 🔥 */}
+      {/* Stempel sekarang berada di root kartu, bukan di dalam div gambar */}
+      
+      {/* INDIKATOR LIKE (Hijau) */}
+      <motion.div 
+          style={{ opacity: likeOpacity }} 
+          className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-50 text-2xl tracking-widest pointer-events-none shadow-sm"
+      >
+          LIKE
+      </motion.div>
+
+      {/* INDIKATOR NOPE (Merah) */}
+      <motion.div 
+          style={{ opacity: passOpacity }} 
+          className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-50 text-2xl tracking-widest pointer-events-none shadow-sm"
+      >
+          NOPE
+      </motion.div>
+
       <div className="w-full h-3/4 bg-gray-100 relative">
         <img 
             src={profile.pfpUrl} 
@@ -71,25 +86,6 @@ export function SwipeCard({ profile, onSwipe, disabled }: { profile: Profile, on
         <div className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20">
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
-
-        {/* STAMP LIKE */}
-        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
-            LIKE
-        </motion.div>
-
-        {/* STAMP NOPE */}
-        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg">
-            NOPE
-        </motion.div>
-        
-        {/* OVERLAY LOCK (Muncul kalau disabled) */}
-        {disabled && (
-             <div className="absolute inset-0 flex items-center justify-center z-40 bg-black/10 backdrop-blur-[2px]">
-                 <div className="bg-black/80 text-white px-4 py-2 rounded-xl font-bold text-sm">
-                    🔒 Limit Reached
-                 </div>
-             </div>
-        )}
       </div>
 
       <div className="w-full h-1/4 p-4 bg-white flex flex-col justify-center relative z-20">
