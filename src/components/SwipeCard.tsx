@@ -19,21 +19,13 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
-  // 🔥 FIX BUG VISUAL: DEAD ZONE (BUFFER) 🔥
-  // Warna hanya muncul jika geser > 25px. 
-  // Ini mencegah kedipan merah/hijau saat kartu diam.
-
-  // 1. Layer Hijau (Kanan): Input [25, 150] -> Output [0, 0.5]
-  // Artinya: Dari 0 sampai 25px, opacity tetap 0 (Bening).
-  const likeOverlayOpacity = useTransform(x, [25, 150], [0, 0.5]);
+  // 🔥 SOLUSI BERSIH: Hapus logika overlay warna yang berat 🔥
+  // Kita hanya mainkan opacity untuk TEKS/STEMPEL saja.
   
-  // 2. Layer Merah (Kiri): Input [-150, -25] -> Output [0.5, 0]
-  // Artinya: Dari -25px sampai 0, opacity tetap 0 (Bening).
-  const passOverlayOpacity = useTransform(x, [-150, -25], [0.5, 0]);
-
-  // Opacity Stamp (Tulisan LIKE/PASS) juga dikasih buffer
-  const likeTextOpacity = useTransform(x, [50, 150], [0, 1]);
-  const passTextOpacity = useTransform(x, [-150, -50], [1, 0]);
+  // Opacity Stamp (Tulisan LIKE/PASS)
+  // Muncul perlahan saat digeser 20px sampai 150px
+  const likeOpacity = useTransform(x, [20, 150], [0, 1]);
+  const passOpacity = useTransform(x, [-150, -20], [1, 0]);
 
   // Fetch Basename
   const { data: basename } = useName({ 
@@ -66,31 +58,22 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
             className="w-full h-full object-cover pointer-events-none" 
         />
         
-        {/* LAYER 1: MERAH (PASS) - Dengan Buffer */}
-        <motion.div 
-            style={{ opacity: passOverlayOpacity }}
-            className="absolute inset-0 z-10 bg-red-500 pointer-events-none"
-        />
-
-        {/* LAYER 2: HIJAU (LIKE) - Dengan Buffer */}
-        <motion.div 
-            style={{ opacity: likeOverlayOpacity }}
-            className="absolute inset-0 z-10 bg-green-500 pointer-events-none"
-        />
+        {/* HAPUS BAGIAN MOTION.DIV OVERLAY WARNA DISINI */}
+        {/* Biarkan foto bersih tanpa filter warna */}
 
         {/* BADGE TIPE USER */}
         <div className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20">
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
 
-        {/* INDIKATOR LIKE TEXT */}
-        <motion.div style={{ opacity: likeTextOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-2 rounded transform -rotate-12 bg-white/90 z-30">
+        {/* INDIKATOR LIKE (Stempel Hijau) */}
+        <motion.div style={{ opacity: likeOpacity }} className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-2 rounded transform -rotate-12 bg-white/80 z-30 tracking-widest text-xl">
             LIKE
         </motion.div>
 
-        {/* INDIKATOR PASS TEXT */}
-        <motion.div style={{ opacity: passTextOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-2 rounded transform rotate-12 bg-white/90 z-30">
-            PASS
+        {/* INDIKATOR PASS (Stempel Merah) */}
+        <motion.div style={{ opacity: passOpacity }} className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-2 rounded transform rotate-12 bg-white/80 z-30 tracking-widest text-xl">
+            NOPE
         </motion.div>
       </div>
 
