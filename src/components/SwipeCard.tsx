@@ -20,8 +20,7 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-25, 25]);
 
-  // HAPUS OVERLAY WARNA (Penyebab Glitch)
-  // Kita hanya pakai Opacity untuk Teks Stempel
+  // Opacity Stamp
   const likeOpacity = useTransform(x, [20, 150], [0, 1]);
   const passOpacity = useTransform(x, [-150, -20], [1, 0]);
 
@@ -52,43 +51,43 @@ export function SwipeCard({ profile, onSwipe }: { profile: Profile, onSwipe: (li
       style={{ x, rotate }}
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
-      // 🔥 TAMBAHKAN 'will-change-transform' AGAR LEBIH MULUS 🔥
-      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col items-center overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
+      className="absolute top-0 w-72 h-96 bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 cursor-grab active:cursor-grabbing will-change-transform"
     >
-      <div className="w-full h-3/4 bg-gray-200 relative">
+      {/* 🔥 PERUBAHAN UTAMA: STEMPEL DI LUAR DIV GAMBAR 🔥 */}
+      {/* Stempel ini sekarang adalah 'saudara' dari div gambar, bukan 'anak'nya */}
+      
+      {/* INDIKATOR LIKE (Hijau) */}
+      <motion.div 
+          style={{ opacity: likeOpacity }} 
+          className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg -rotate-12 z-50 text-2xl tracking-widest bg-white/80 pointer-events-none"
+      >
+          LIKE
+      </motion.div>
+
+      {/* INDIKATOR NOPE (Merah) */}
+      <motion.div 
+          style={{ opacity: passOpacity }} 
+          className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg rotate-12 z-50 text-2xl tracking-widest bg-white/80 pointer-events-none"
+      >
+          NOPE
+      </motion.div>
+
+      {/* KOTAK GAMBAR (Sekarang bersih tanpa stempel di dalamnya) */}
+      <div className="w-full h-3/4 bg-gray-100 relative">
         <img 
             src={profile.pfpUrl} 
             alt={displayName} 
-            className="w-full h-full object-cover pointer-events-none" 
+            className="w-full h-full object-cover pointer-events-none"
+            loading="eager"
         />
-        
-        {/* EFEK BIRU TIPIS (Hanya statis, tidak berubah saat geser) */}
-        {profile.type === 'base' && (
-            <div className="absolute inset-0 bg-blue-500/10 pointer-events-none mix-blend-multiply" />
-        )}
 
         {/* BADGE TIPE USER */}
         <div className="absolute top-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 shadow-sm z-20">
             {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
         </div>
-
-        {/* STAMP LIKE (Hijau) */}
-        <motion.div 
-            style={{ opacity: likeOpacity }} 
-            className="absolute top-8 left-8 border-4 border-green-500 text-green-500 font-bold px-4 py-1 rounded-lg transform -rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg"
-        >
-            LIKE
-        </motion.div>
-
-        {/* STAMP NOPE (Merah) */}
-        <motion.div 
-            style={{ opacity: passOpacity }} 
-            className="absolute top-8 right-8 border-4 border-red-500 text-red-500 font-bold px-4 py-1 rounded-lg transform rotate-12 bg-white/80 z-30 tracking-widest text-2xl shadow-lg"
-        >
-            NOPE
-        </motion.div>
       </div>
 
+      {/* INFO USER */}
       <div className="w-full h-1/4 p-4 bg-white flex flex-col justify-center relative z-20">
         <div className="flex items-center gap-2 mb-1">
             <h2 className="text-xl font-bold text-gray-800 truncate max-w-[180px]">
