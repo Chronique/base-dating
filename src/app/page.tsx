@@ -110,7 +110,7 @@ export default function Home() {
       setIsLoadingUsers(true);
       try {
         const randomStart = Math.floor(Math.random() * 10000) + 1;
-        const randomFids = Array.from({ length: 70 }, (_, i) => randomStart + i).join(',');
+        const randomFids = Array.from({ length: 25 }, (_, i) => randomStart + i).join(',');
         const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${randomFids}`, {
             headers: { accept: 'application/json', api_key: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || 'NEYNAR_API_DOCS' }
         });
