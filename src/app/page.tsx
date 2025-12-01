@@ -56,14 +56,22 @@ export default function Home() {
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
   const [matchPartner, setMatchPartner] = useState<string | null>(null);
+  
+  // 👇 State baru untuk menangani tampilan tombol jika auto-connect macet
+  const [showConnectButtons, setShowConnectButtons] = useState(false); 
 
   const { isConnected, address } = useAccount();
-  const { connectors, connect } = useConnect(); // connectError dihapus agar tidak memunculkan UI error
+  const { connectors, connect } = useConnect(); 
   const { data: balance } = useBalance({ address });
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const isWrongNetwork = isConnected && chainId !== base.id;
   const hasAttemptedAutoConnect = useRef(false);
+
+  // Filter connector agar bersih
+  const filteredConnectors = connectors.filter((c) => 
+    c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('metamask') || c.id === 'injected'
+  );
 
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
@@ -132,18 +140,36 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 4. AUTO CONNECT (DIPERCEPAT)
+  // 4. AUTO CONNECT + FALLBACK TIMEOUT
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
         
-        // Langsung eksekusi tanpa delay 500ms
         const farcasterWallet = connectors.find(c => c.id === 'injected');
         if (farcasterWallet) {
             connect({ connector: farcasterWallet });
         }
+
+        // 👇 TIMEOUT: Jika dalam 2 detik belum konek, munculkan tombol manual
+        const timer = setTimeout(() => {
+            if (!isConnected) {
+                setShowConnectButtons(true);
+            }
+        }, 2000); // 2 detik
+
+        return () => clearTimeout(timer);
+    } else if (mounted && !isConnected && !context) {
+        // Jika di browser biasa (bukan frame), langsung munculkan tombol
+        setShowConnectButtons(true);
     }
   }, [mounted, context, isConnected, connectors, connect]);
+
+  // Jika status berubah jadi connected, sembunyikan tombol lagi
+  useEffect(() => {
+    if (isConnected) {
+        setShowConnectButtons(false);
+    }
+  }, [isConnected]);
 
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
     .filter(p => queueAddr.length < 50 ? !queueAddr.includes(p.custody_address) : true);
@@ -198,33 +224,40 @@ export default function Home() {
 
   if (!mounted) return null;
 
-  // 🔥 TAMPILAN LOADING / AUTO CONNECT (Tombol disembunyikan)
+  // 🔥 TAMPILAN LOGIN (Auto Connect / Manual Fallback)
   if (!isConnected) return (
         <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-white p-4 text-center overflow-hidden touch-none">
              {/* Logo & Branding */}
-             <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
+             <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500 mb-8">
                 <div className="text-6xl mb-4 animate-bounce">🔵</div>
                 <h1 className="text-4xl font-black text-blue-600 mb-2 tracking-tighter">Base Dating</h1>
                 <p className="text-gray-400 text-sm font-medium">Find your on-chain match</p>
              </div>
 
-             {/* Loading Spinner */}
-             <div className="mt-8 flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-                <p className="text-gray-400 text-xs font-mono animate-pulse">
-                    {context ? "Authenticating..." : "Initializing..."}
-                </p>
-             </div>
-
-             {/* Hidden Retry (Jaga-jaga kalau stuck) */}
-             <div className="absolute bottom-10 opacity-50">
-                 <button 
-                    onClick={() => window.location.reload()}
-                    className="text-xs text-gray-300 underline hover:text-gray-500"
-                 >
-                    Stuck? Reload
-                 </button>
-             </div>
+             {/* 👇 LOGIC TAMPILAN: Loading vs Tombol */}
+             {!showConnectButtons ? (
+                // TAMPILAN LOADING (Sedang Auto Connect)
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                    <p className="text-gray-400 text-xs font-mono animate-pulse">
+                        {context ? "Authenticating..." : "Initializing..."}
+                    </p>
+                </div>
+             ) : (
+                // TAMPILAN TOMBOL MANUAL (Fallback jika auto connect lama/gagal)
+                <div className="flex flex-col gap-3 w-full max-w-xs animate-in slide-in-from-bottom-5 duration-300">
+                    {filteredConnectors.map((connector) => (
+                        <button 
+                            key={connector.uid} 
+                            onClick={() => connect({ connector })} 
+                            className="bg-white border-2 border-blue-100 text-blue-600 hover:bg-blue-50 hover:border-blue-600 px-6 py-4 rounded-2xl font-bold transition-all shadow-sm active:scale-95 flex items-center justify-center gap-3"
+                        >
+                            <span>🔌</span> Connect {connector.name}
+                        </button>
+                    ))}
+                    <p className="text-xs text-gray-300 mt-4">Tap to connect manually</p>
+                </div>
+             )}
         </main>
     );
 
