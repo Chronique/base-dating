@@ -58,6 +58,10 @@ export default function Home() {
   const [context, setContext] = useState<any>();
 
   const [myGender, setMyGender] = useState<'male' | 'female' | null>(null);
+  
+  // 👇 State baru untuk mengontrol halaman intro (1 = Welcome, 2 = How to/Select)
+  const [introStep, setIntroStep] = useState<1 | 2>(1); 
+
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
@@ -222,14 +226,88 @@ export default function Home() {
         </main>
     );
 
+  // 🔥 ONBOARDING FLOW
   if (!myGender) return (
-        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-background p-4 text-center overflow-hidden touch-none">
-            <div className="flex flex-col gap-4 w-full max-w-xs">
-                <button onClick={() => setMyGender('male')} className="bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 text-blue-700 dark:text-blue-300 p-6 rounded-2xl text-xl font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">👨 I am a Man</button>
-                <button onClick={() => setMyGender('female')} className="bg-pink-100 dark:bg-pink-900/30 border-2 border-pink-500 text-pink-700 dark:text-pink-300 p-6 rounded-2xl text-xl font-bold hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-colors">👩 I am a Woman</button>
+    <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-background p-6 text-center overflow-y-auto touch-auto">
+        
+        {/* STEP 1: WHAT IS THIS */}
+        {introStep === 1 && (
+            <div className="flex flex-col items-center max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="text-6xl mb-6 animate-bounce">🔵</div>
+                <h1 className="text-3xl font-black text-primary mb-6">Welcome to<br/>Base Dating</h1>
+                
+                <div className="bg-card border border-border rounded-2xl p-6 w-full shadow-sm mb-8 text-left space-y-4">
+                    <div className="flex items-start gap-3">
+                        <span className="text-xl">🔥</span>
+                        <p className="text-sm text-muted-foreground">Swipe Farcaster user profiles<br/><span className="text-xs opacity-70">(Left = ❌, Right = 💚)</span></p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                        <span className="text-xl">⛽</span>
+                        <p className="text-sm text-muted-foreground">Collect up to 50 swipes, then pay gas fee in one batch</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                        <span className="text-xl">💬</span>
+                        <p className="text-sm text-muted-foreground">If matched (mutual like), you can chat via XMTP</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                        <span className="text-xl">⛓️</span>
+                        <p className="text-sm text-muted-foreground">Everything is securely stored on the Base blockchain</p>
+                    </div>
+                </div>
+
+                <button 
+                    onClick={() => setIntroStep(2)}
+                    className="w-full bg-primary text-primary-foreground p-4 rounded-xl font-bold text-lg shadow-lg hover:bg-primary/90 transition-all"
+                >
+                    Next
+                </button>
             </div>
-        </main>
-      );
+        )}
+
+        {/* STEP 2: HOW IT WORKS & GENDER SELECTION */}
+        {introStep === 2 && (
+            <div className="flex flex-col items-center max-w-md w-full animate-in fade-in slide-in-from-right-4 duration-500">
+                 <h2 className="text-2xl font-bold text-foreground mb-6">How it works</h2>
+                 
+                 <div className="w-full space-y-3 mb-8">
+                    {[
+                        "Select your gender",
+                        "Get random Farcaster profiles",
+                        "Swipe like/dislike (stored locally)",
+                        "Pay gas after 50 swipes to save on-chain",
+                        "Mutual likes = Match = Chat! 🚀"
+                    ].map((text, i) => (
+                        <div key={i} className="flex items-center gap-3 bg-secondary/50 p-3 rounded-lg">
+                            <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                {i + 1}
+                            </div>
+                            <p className="text-sm text-left font-medium text-foreground">{text}</p>
+                        </div>
+                    ))}
+                 </div>
+
+                <p className="text-muted-foreground mb-4 font-medium">Select your gender to start:</p>
+                
+                <div className="w-full space-y-3">
+                    <button onClick={() => setMyGender('male')} className="w-full bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 text-blue-700 dark:text-blue-300 p-4 rounded-xl font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all">
+                        👨 I am a Man
+                    </button>
+                    <button onClick={() => setMyGender('female')} className="w-full bg-pink-100 dark:bg-pink-900/30 border-2 border-pink-500 text-pink-700 dark:text-pink-300 p-4 rounded-xl font-bold hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-all">
+                        👩 I am a Woman
+                    </button>
+                </div>
+                
+                <button 
+                    onClick={() => setIntroStep(1)}
+                    className="mt-6 text-xs text-muted-foreground underline"
+                >
+                    Back to Intro
+                </button>
+            </div>
+        )}
+
+    </main>
+  );
 
   return (
     <main className="fixed inset-0 h-[100dvh] w-full bg-background flex flex-col items-center justify-center relative overflow-hidden touch-none text-foreground">
@@ -300,7 +378,6 @@ export default function Home() {
 
       {/* TOMBOL FLOATING BOTTOM */}
       <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
-        {/* Tombol selalu muncul, berubah fungsi tergantung status */}
         {(!isConnected || queueAddr.length > 0) && (
             <button 
                 onClick={handleSaveAction} 
