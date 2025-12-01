@@ -13,9 +13,11 @@ import {
   useBalance 
 } from "wagmi";
 import { base } from "wagmi/chains"; 
+// Pastikan path ini sesuai dengan struktur foldermu
 import { SwipeCard } from "../components/SwipeCard"; 
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
+// Tipe Data User
 type FarcasterUser = {
   fid: number;
   username: string;
@@ -27,6 +29,7 @@ type FarcasterUser = {
   type: 'farcaster' | 'base';
 };
 
+// --- KOMPONEN POPUP MATCH ---
 function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
     const chatLink = `https://xmttp.chat/dm/${partner}`; 
     return (
@@ -44,18 +47,22 @@ function MatchModal({ partner, onClose }: { partner: string, onClose: () => void
     );
 }
 
+// --- HALAMAN UTAMA ---
 export default function Home() {
+  // State Data & UI
   const [profiles, setProfiles] = useState<FarcasterUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [context, setContext] = useState<any>();
 
+  // State Logic Dating
   const [myGender, setMyGender] = useState<'male' | 'female' | null>(null);
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
   const [matchPartner, setMatchPartner] = useState<string | null>(null);
 
+  // Wagmi Hooks
   const { isConnected, address } = useAccount();
   const { connectors, connect, error: connectError } = useConnect();
   const { data: balance } = useBalance({ address });
@@ -64,14 +71,16 @@ export default function Home() {
   const isWrongNetwork = isConnected && chainId !== base.id;
   const hasAttemptedAutoConnect = useRef(false);
 
+  // Filter Wallet (Hanya tampilkan yang relevan)
   const filteredConnectors = connectors.filter((c) => 
     c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('metamask') || c.id === 'injected'
   );
 
+  // Contract Hooks
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. INIT
+  // 1. INIT (Load LocalStorage & Context)
   useEffect(() => {
     const initFast = async () => {
       setMounted(true);
@@ -96,17 +105,20 @@ export default function Home() {
     initFast();
   }, []);
 
-  // 2. FETCH USERS
+  // 2. FETCH USERS (Dari Neynar API)
   useEffect(() => {
     const fetchUsersBg = async () => {
       if (!mounted) return;
       setIsLoadingUsers(true);
       try {
+        // Ambil user acak biar gak bosen
         const randomStart = Math.floor(Math.random() * 10000) + 1;
         const randomFids = Array.from({ length: 70 }, (_, i) => randomStart + i).join(',');
+        
         const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${randomFids}`, {
             headers: { accept: 'application/json', api_key: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || 'NEYNAR_API_DOCS' }
         });
+        
         const data = await response.json();
         if (data.users) {
             const fcUsers: FarcasterUser[] = data.users.map((u: any, index: number) => ({
@@ -116,8 +128,10 @@ export default function Home() {
                 custody_address: u.verified_addresses.eth_addresses[0] || u.custody_address,
                 gender: index % 2 === 0 ? 'female' : 'male', type: 'farcaster' as const
             }));
+            
+            // Bersihkan data user yang tidak valid
             const cleanUsers = fcUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address.startsWith('0x') && u.custody_address !== '0x0000000000000000000000000000000000000000');
-            cleanUsers.sort(() => Math.random() - 0.5);
+            cleanUsers.sort(() => Math.random() - 0.5); // Shuffle
             setProfiles(cleanUsers);
         }
       } catch (e) { console.error(e); } finally { setIsLoadingUsers(false); }
@@ -125,7 +139,7 @@ export default function Home() {
     if (mounted) fetchUsersBg();
   }, [mounted]);
 
-  // 3. AUTO SAVE
+  // 3. AUTO SAVE ke LocalStorage
   useEffect(() => {
     if (isStorageLoaded && typeof window !== 'undefined') {
         const data = { addrs: queueAddr, likes: queueLikes };
@@ -134,7 +148,7 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 4. AUTO CONNECT
+  // 4. AUTO CONNECT WALLET (Farcaster Logic)
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
@@ -145,9 +159,12 @@ export default function Home() {
     }
   }, [mounted, context, isConnected, connectors, connect]);
 
-  const filteredProfiles = profiles.filter(p => p.gender !== myGender)
+  // Filter Profile: Buang gender sendiri & yang sudah diswipe
+  const filteredProfiles = profiles
+    .filter(p => p.gender !== myGender)
     .filter(p => queueAddr.length < 50 ? !queueAddr.includes(p.custody_address) : true);
 
+  // Listener Event Match dari Smart Contract
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -164,23 +181,27 @@ export default function Home() {
     },
   });
 
+  // --- LOGIC SWIPE BARU (React Tinder Card) ---
   const handleSwipe = (dir: string, profile: FarcasterUser) => {
     const liked = dir === 'right';
-    if (queueAddr.length >= 50) return; 
-
-    const newAddr = [...queueAddr, profile.custody_address];
-    const newLikes = [...queueLikes, liked];
     
-    setQueueAddr(newAddr);
-    setQueueLikes(newLikes);
-
-    if (newAddr.length >= 50) {
-        commitSwipes(newAddr, newLikes);
+    // 1. Simpan ke Queue
+    if (queueAddr.length < 50) {
+        setQueueAddr((prev) => [...prev, profile.custody_address]);
+        setQueueLikes((prev) => [...prev, liked]);
+        
+        // Cek Auto Commit
+        const currentLength = queueAddr.length + 1;
+        if (currentLength >= 50) {
+             // Jika sudah 50, jangan commit otomatis di sini, biarkan user klik tombol save
+             // atau panggil fungsi commitSwipes([...queueAddr, profile.custody_address], [...queueLikes, liked])
+        }
     }
-    
-    setTimeout(() => {
-        setProfiles((prev) => prev.filter(p => p.custody_address !== profile.custody_address));
-    }, 200);
+
+    // 2. Hapus dari UI (State) agar kartu di belakangnya muncul
+    // Penting untuk react-tinder-card: Hapus state SETELAH kartu keluar layar
+    // Fungsi ini dipanggil oleh onCardLeftScreen di SwipeCard.tsx
+    setProfiles((current) => current.filter(p => p.custody_address !== profile.custody_address));
   };
 
   const commitSwipes = (addrs: string[], likes: boolean[]) => {
@@ -192,20 +213,22 @@ export default function Home() {
     });
   };
 
+  // Reset setelah transaksi sukses
   useEffect(() => {
     if (isSuccess) {
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem('baseDatingQueue');
-      setProfiles((prev) => prev.length > 0 ? prev.slice(1) : prev);
       alert("✅ Swipes Saved! Gas Payment Successful.");
     }
   }, [isSuccess]);
 
+  // --- RENDER ---
   if (!mounted) return null;
 
+  // Tampilan Login
   if (!isConnected) return (
-        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-gray-50 p-4 text-center overflow-hidden">
+        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-gray-50 p-4 text-center overflow-hidden touch-none">
             {context && !connectError ? (
                 <div className="animate-pulse flex flex-col items-center">
                     <div className="w-16 h-16 bg-gray-200 rounded-full mb-4 animate-spin"></div>
@@ -226,29 +249,32 @@ export default function Home() {
         </main>
     );
 
+  // Tampilan Salah Network
   if (isWrongNetwork) return (
-        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-red-50 p-4 text-center overflow-hidden">
+        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-red-50 p-4 text-center overflow-hidden touch-none">
             <h2 className="text-2xl font-bold text-red-600 mb-2">Wrong Network ⚠️</h2>
             <button onClick={() => switchChain({ chainId: base.id })} className="bg-red-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-red-700">🔀 Switch Network</button>
         </main>
     );
 
+  // Tampilan Pilih Gender
   if (!myGender) return (
-        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-white p-4 text-center overflow-hidden">
+        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-white p-4 text-center overflow-hidden touch-none">
             <div className="flex flex-col gap-4 w-full max-w-xs">
-                <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👩 Man</button>
-                <button onClick={() => setMyGender('female')} className="bg-pink-100 border-2 border-pink-500 text-pink-700 p-6 rounded-2xl text-xl font-bold">👩 Woman</button>
+                <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👨 I am a Man</button>
+                <button onClick={() => setMyGender('female')} className="bg-pink-100 border-2 border-pink-500 text-pink-700 p-6 rounded-2xl text-xl font-bold">👩 I am a Woman</button>
             </div>
         </main>
       );
 
+  // Tampilan Utama (Swiping)
   return (
-    // ✅ FIX: Layout Fullscreen Anti-Scroll
     <main className="fixed inset-0 h-[100dvh] w-full bg-gray-50 flex flex-col items-center justify-center relative overflow-hidden touch-none">
       
+      {/* Modal Match */}
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
-      {/* HEADER (Saldo & Status) */}
+      {/* Header: Saldo & Progress */}
       <div className="absolute top-4 left-4 z-50 pointer-events-auto">
          <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm shadow-md">
             💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : '...'}
@@ -265,23 +291,31 @@ export default function Home() {
       </div>
 
       {/* AREA KARTU */}
+      {/* Container Full Screen Transparan */}
       <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
-          {/* Container Kartu */}
+          
+          {/* Container Ukuran Kartu (Tempat kartu ditumpuk) */}
           <div className="relative w-72 h-96 pointer-events-auto">
+            
+            {/* Logic Render: Loading vs Empty vs Cards */}
             {isLoadingUsers && filteredProfiles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full">
                     <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                     <p className="mt-4 text-gray-500 animate-pulse">Finding people...</p>
                 </div>
             ) : filteredProfiles.length > 0 ? (
+                // RENDER KARTU
+                // React Tinder Card menumpuk elemen array terakhir di PALING ATAS (Secara visual)
+                // Jadi kita map biasa saja.
                 filteredProfiles.map((profile) => (
                     <SwipeCard 
-                        key={profile.custody_address} 
+                        key={profile.custody_address} // Key wajib unik
                         profile={profile} 
                         onSwipe={(dir) => handleSwipe(dir, profile)} 
                     />
                 ))
             ) : (
+                // HABIS
                 <div className="text-center pointer-events-auto">
                     <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
                     <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4 shadow">Refresh Users</button>
