@@ -19,12 +19,12 @@ import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 type FarcasterUser = {
   fid: number;
   username: string;
-  pfp_url: string; // ✅ Konsisten pakai pfp_url
+  pfp_url: string;
   custody_address: string;
   display_name: string;
-  bio: string; 
+  bio: string;
   gender: 'male' | 'female';
-  type: 'farcaster'; // Hanya Farcaster sekarang
+  type: 'farcaster' | 'base';
 };
 
 function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
@@ -96,7 +96,7 @@ export default function Home() {
     initFast();
   }, []);
 
-  // 2. FETCH USERS (HANYA FARCASTER)
+  // 2. FETCH USERS
   useEffect(() => {
     const fetchUsersBg = async () => {
       if (!mounted) return;
@@ -111,16 +111,12 @@ export default function Home() {
         if (data.users) {
             const fcUsers: FarcasterUser[] = data.users.map((u: any, index: number) => ({
                 fid: u.fid, username: u.username, display_name: u.display_name, 
-                pfp_url: u.pfp_url, // ✅ Konsisten
+                pfp_url: u.pfp_url, 
                 bio: u.profile?.bio?.text || `Farcaster OG @${u.username}`, 
                 custody_address: u.verified_addresses.eth_addresses[0] || u.custody_address,
-                gender: index % 2 === 0 ? 'female' : 'male', 
-                type: 'farcaster' as const
+                gender: index % 2 === 0 ? 'female' : 'male', type: 'farcaster' as const
             }));
-            // Filter user yang punya foto & address valid
             const cleanUsers = fcUsers.filter(u => u.pfp_url && u.custody_address && u.custody_address.startsWith('0x') && u.custody_address !== '0x0000000000000000000000000000000000000000');
-            
-            // Acak urutan
             cleanUsers.sort(() => Math.random() - 0.5);
             setProfiles(cleanUsers);
         }
@@ -168,7 +164,7 @@ export default function Home() {
     },
   });
 
-  // 🔥 FIX TIPE DATA HANDLE SWIPE 🔥
+  // LOGIKA SWIPE SPRING
   const handleSwipe = (dir: string, profile: FarcasterUser) => {
     const liked = dir === 'right';
     console.log("Swiped:", dir, "Liked:", liked);
@@ -184,11 +180,12 @@ export default function Home() {
     if (newAddr.length >= 50) {
         commitSwipes(newAddr, newLikes);
     }
-    // Catatan: Kita tidak menghapus profil di sini, tapi di handleCardLeftScreen
-  };
-
-  const handleCardLeftScreen = (identifier: string) => {
-    setProfiles((prev) => prev.filter(p => p.custody_address !== identifier));
+    
+    // Hapus dari state lokal setelah logika selesai
+    // (React Spring akan handle animasi visualnya secara internal sebelum komponen unmount)
+    setTimeout(() => {
+        setProfiles((prev) => prev.filter(p => p.custody_address !== profile.custody_address));
+    }, 200); // Delay dikit biar animasi 'fly away' kelihatan dulu
   };
 
   const commitSwipes = (addrs: string[], likes: boolean[]) => {
@@ -274,17 +271,15 @@ export default function Home() {
         {isLoadingUsers && filteredProfiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4 text-gray-500 animate-pulse">Finding Farcaster Users...</p>
+                <p className="mt-4 text-gray-500 animate-pulse">Finding people...</p>
             </div>
         ) : filteredProfiles.length > 0 ? (
-          // Render kartu sebagai tumpukan
+          // Render kartu tumpukan
           filteredProfiles.map((profile) => (
              <SwipeCard 
-                key={profile.custody_address}
+                key={profile.custody_address} // Key harus unik
                 profile={profile} 
-                // Kirim function handleSwipe yang sudah fix
                 onSwipe={(dir) => handleSwipe(dir, profile)} 
-                onCardLeftScreen={handleCardLeftScreen}
              />
           ))
         ) : (
