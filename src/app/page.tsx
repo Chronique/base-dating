@@ -262,7 +262,7 @@ export default function Home() {
       </div>
 
       {/* CARD STACK */}
-      <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
+      <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-10">
           <div className="relative w-72 h-96 pointer-events-auto">
             {isLoadingUsers && filteredProfiles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full">
@@ -286,19 +286,28 @@ export default function Home() {
           </div>
       </div>
 
+      {/* VISUAL HINTS (Static) */}
+      <div className="absolute top-1/2 w-full flex justify-between px-8 pointer-events-none z-0 transform -translate-y-1/2">
+         <div className="flex flex-col items-center opacity-20 dark:opacity-30">
+            <span className="text-5xl">❌</span>
+            <span className="font-black text-destructive tracking-widest mt-2 text-xl">NOPE</span>
+         </div>
+         <div className="flex flex-col items-center opacity-20 dark:opacity-30">
+            <span className="text-5xl">💚</span>
+            <span className="font-black text-green-500 tracking-widest mt-2 text-xl">LIKE</span>
+         </div>
+      </div>
+
       {/* TOMBOL FLOATING BOTTOM */}
       <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
-        {/* Tampilkan tombol jika: 
-            1. Belum Connect (Supaya bisa connect manual) 
-            2. ATAU Sudah ada swipe yang perlu disimpan
-        */}
+        {/* Tombol selalu muncul, berubah fungsi tergantung status */}
         {(!isConnected || queueAddr.length > 0) && (
             <button 
                 onClick={handleSaveAction} 
                 disabled={isPending}
                 className={`w-full max-w-xs py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${
                     queueAddr.length >= 50 
-                        ? "bg-destructive animate-bounce" 
+                        ? "bg-destructive hover:bg-destructive/90 animate-bounce" 
                         : "bg-primary hover:bg-primary/90"
                 } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
             >
