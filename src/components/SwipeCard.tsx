@@ -41,12 +41,14 @@ export function SwipeCard({ profile, onSwipe }: {
         swipeRequirementType="position"
         swipeThreshold={100} 
       >
-        {/* KARTU VISUAL */}
+        {/* 👇 UPDATE DI SINI: 
+            - Ganti bg-white -> bg-card 
+            - Ganti border-gray-200 -> border-border 
+            Ini akan mengikuti tema gelap/terang dari globals.css
+        */}
         <div 
-            // 👇 UPDATE: Kita tambahkan 'bg-cover bg-center bg-no-repeat' di sini
             className="relative w-72 h-96 bg-card rounded-3xl shadow-xl overflow-hidden border border-border select-none cursor-grab active:cursor-grabbing bg-cover bg-center bg-no-repeat"
             style={{ 
-                // 👇 Hanya URL gambar yang tersisa di sini karena sifatnya dinamis
                 backgroundImage: `url(${profile.pfp_url})`
             }}
         >

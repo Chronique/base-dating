@@ -31,7 +31,6 @@ function MatchModal({ partner, onClose }: { partner: string, onClose: () => void
     const chatLink = `https://xmttp.chat/dm/${partner}`; 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in zoom-in p-4 touch-auto">
-            {/* Menggunakan bg-card dan text-card-foreground agar responsif tema */}
             <div className="bg-card border border-border p-6 rounded-3xl text-center max-w-sm w-full shadow-2xl relative overflow-hidden">
                 <div className="text-6xl mb-4 animate-bounce">💖</div>
                 <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600 mb-2">IT'S A MATCH!</h2>
@@ -233,11 +232,11 @@ export default function Home() {
       );
 
   return (
-    // Menggunakan bg-background dan text-foreground agar mengikuti tema
     <main className="fixed inset-0 h-[100dvh] w-full bg-background flex flex-col items-center justify-center relative overflow-hidden touch-none text-foreground">
       
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
+      {/* HEADER STATUS */}
       <div className="absolute top-4 left-4 z-50 pointer-events-auto">
          <div className="bg-card/80 backdrop-blur-md text-card-foreground border border-border text-xs px-3 py-1 rounded-full shadow-md flex items-center gap-2">
             {isConnected ? (
@@ -262,11 +261,11 @@ export default function Home() {
          </div>
       </div>
 
+      {/* CARD STACK */}
       <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
           <div className="relative w-72 h-96 pointer-events-auto">
             {isLoadingUsers && filteredProfiles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full">
-                    {/* Spinner warna primary */}
                     <div className="w-12 h-12 border-4 border-muted border-t-primary rounded-full animate-spin"></div>
                     <p className="mt-4 text-muted-foreground animate-pulse">Finding people...</p>
                 </div>
@@ -287,24 +286,33 @@ export default function Home() {
           </div>
       </div>
 
-      {queueAddr.length > 0 && (
-          <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
+      {/* TOMBOL FLOATING BOTTOM */}
+      <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
+        {/* Tampilkan tombol jika: 
+            1. Belum Connect (Supaya bisa connect manual) 
+            2. ATAU Sudah ada swipe yang perlu disimpan
+        */}
+        {(!isConnected || queueAddr.length > 0) && (
             <button 
                 onClick={handleSaveAction} 
                 disabled={isPending}
                 className={`w-full max-w-xs py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${
                     queueAddr.length >= 50 
-                        ? "bg-destructive hover:bg-destructive/90 animate-bounce" 
-                        : "bg-foreground text-background hover:bg-foreground/90"
+                        ? "bg-destructive animate-bounce" 
+                        : "bg-primary hover:bg-primary/90"
                 } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
             >
                 {isPending 
                     ? "⏳ Processing..." 
-                    : (queueAddr.length >= 50 ? "⛽ Pay Gas to Continue Swiping" : (!isConnected ? "🔌 Connect & Save" : `Save Progress (${queueAddr.length})`))
+                    : (
+                        !isConnected 
+                           ? "🔌 Connect Wallet" 
+                           : (queueAddr.length >= 50 ? "⛽ Pay Gas Now" : `Save Progress (${queueAddr.length})`)
+                      )
                 }
             </button>
-          </div>
-      )}
+        )}
+      </div>
     </main>
   );
 }
