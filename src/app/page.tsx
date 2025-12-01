@@ -30,7 +30,7 @@ type FarcasterUser = {
 function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
     const chatLink = `https://xmttp.chat/dm/${partner}`; 
     return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 animate-in fade-in zoom-in p-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] animate-in fade-in zoom-in p-4 touch-auto">
             <div className="bg-white p-6 rounded-3xl text-center max-w-sm w-full shadow-2xl relative overflow-hidden">
                 <div className="text-6xl mb-4 animate-bounce">💖</div>
                 <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600 mb-2">IT'S A MATCH!</h2>
@@ -164,11 +164,8 @@ export default function Home() {
     },
   });
 
-  // LOGIKA SWIPE SPRING
   const handleSwipe = (dir: string, profile: FarcasterUser) => {
     const liked = dir === 'right';
-    console.log("Swiped:", dir, "Liked:", liked);
-
     if (queueAddr.length >= 50) return; 
 
     const newAddr = [...queueAddr, profile.custody_address];
@@ -181,15 +178,12 @@ export default function Home() {
         commitSwipes(newAddr, newLikes);
     }
     
-    // Hapus dari state lokal setelah logika selesai
-    // (React Spring akan handle animasi visualnya secara internal sebelum komponen unmount)
     setTimeout(() => {
         setProfiles((prev) => prev.filter(p => p.custody_address !== profile.custody_address));
-    }, 200); // Delay dikit biar animasi 'fly away' kelihatan dulu
+    }, 200);
   };
 
   const commitSwipes = (addrs: string[], likes: boolean[]) => {
-    console.log("🚀 Submitting 50 swipes...");
     writeContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: DATING_ABI,
@@ -211,7 +205,7 @@ export default function Home() {
   if (!mounted) return null;
 
   if (!isConnected) return (
-        <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 text-center">
+        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-gray-50 p-4 text-center overflow-hidden">
             {context && !connectError ? (
                 <div className="animate-pulse flex flex-col items-center">
                     <div className="w-16 h-16 bg-gray-200 rounded-full mb-4 animate-spin"></div>
@@ -233,31 +227,34 @@ export default function Home() {
     );
 
   if (isWrongNetwork) return (
-        <main className="min-h-screen flex flex-col items-center justify-center bg-red-50 p-4 text-center">
+        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-red-50 p-4 text-center overflow-hidden">
             <h2 className="text-2xl font-bold text-red-600 mb-2">Wrong Network ⚠️</h2>
             <button onClick={() => switchChain({ chainId: base.id })} className="bg-red-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-red-700">🔀 Switch Network</button>
         </main>
     );
 
   if (!myGender) return (
-        <main className="min-h-screen flex flex-col items-center justify-center bg-white p-4 text-center">
+        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-white p-4 text-center overflow-hidden">
             <div className="flex flex-col gap-4 w-full max-w-xs">
-                <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👨 Man</button>
+                <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👩 Man</button>
                 <button onClick={() => setMyGender('female')} className="bg-pink-100 border-2 border-pink-500 text-pink-700 p-6 rounded-2xl text-xl font-bold">👩 Woman</button>
             </div>
         </main>
       );
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 pb-32 relative overflow-hidden">
+    // ✅ FIX: Layout Fullscreen Anti-Scroll
+    <main className="fixed inset-0 h-[100dvh] w-full bg-gray-50 flex flex-col items-center justify-center relative overflow-hidden touch-none">
+      
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
-      <div className="absolute top-4 left-4 z-20">
+      {/* HEADER (Saldo & Status) */}
+      <div className="absolute top-4 left-4 z-50 pointer-events-auto">
          <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm shadow-md">
             💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : '...'}
          </div>
       </div>
-      <div className="absolute top-4 right-4 z-20">
+      <div className="absolute top-4 right-4 z-50 pointer-events-auto">
          <div className={`px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2 ${isPending ? 'bg-orange-100 border-orange-300' : 'bg-white'}`}>
             {isPending ? (
                 <span className="text-orange-600 font-bold">Confirming...</span>
@@ -267,31 +264,35 @@ export default function Home() {
          </div>
       </div>
 
-      <div className="relative w-72 h-96 mt-8">
-        {isLoadingUsers && filteredProfiles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full">
-                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4 text-gray-500 animate-pulse">Finding people...</p>
-            </div>
-        ) : filteredProfiles.length > 0 ? (
-          // Render kartu tumpukan
-          filteredProfiles.map((profile) => (
-             <SwipeCard 
-                key={profile.custody_address} // Key harus unik
-                profile={profile} 
-                onSwipe={(dir) => handleSwipe(dir, profile)} 
-             />
-          ))
-        ) : (
-          <div className="text-center">
-             <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
-             <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4 shadow">Refresh Users</button>
+      {/* AREA KARTU */}
+      <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
+          {/* Container Kartu */}
+          <div className="relative w-72 h-96 pointer-events-auto">
+            {isLoadingUsers && filteredProfiles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full">
+                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="mt-4 text-gray-500 animate-pulse">Finding people...</p>
+                </div>
+            ) : filteredProfiles.length > 0 ? (
+                filteredProfiles.map((profile) => (
+                    <SwipeCard 
+                        key={profile.custody_address} 
+                        profile={profile} 
+                        onSwipe={(dir) => handleSwipe(dir, profile)} 
+                    />
+                ))
+            ) : (
+                <div className="text-center pointer-events-auto">
+                    <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
+                    <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4 shadow">Refresh Users</button>
+                </div>
+            )}
           </div>
-        )}
       </div>
 
+      {/* TOMBOL SAVE (Floating Bottom) */}
       {queueAddr.length > 0 && (
-          <div className="fixed bottom-8 w-full flex justify-center z-50 px-4">
+          <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
             <button 
                 onClick={() => commitSwipes(queueAddr, queueLikes)} 
                 disabled={isPending}

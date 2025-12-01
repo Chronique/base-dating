@@ -2,7 +2,6 @@
 
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-// 👇 GANTI KE BASE (MAINNET)
 import { base } from "wagmi/chains"; 
 import { type ReactNode, useState } from "react";
 import { type State, WagmiProvider, createConfig, http } from "wagmi";
@@ -10,12 +9,13 @@ import { coinbaseWallet, injected, metaMask } from "wagmi/connectors";
 
 const getConfig = () => {
   return createConfig({
-    chains: [base], // 👇 Hapus baseSepolia, sisakan base
+    chains: [base],
     transports: {
-      [base.id]: http(),
+      // ✅ FIX: Menggunakan RPC dari env variable agar tidak antre di jalur public
+      [base.id]: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL), 
     },
     connectors: [
-      injected(), 
+      injected(), // Prioritas untuk Farcaster Frame
       coinbaseWallet({
         appName: "Base Dating",
         preference: "all", 
@@ -38,7 +38,7 @@ export function Providers(props: {
       <QueryClientProvider client={queryClient}>
         <OnchainKitProvider
           apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
-          chain={base} // 👇 Ganti jadi base
+          chain={base}
         >
           {props.children}
         </OnchainKitProvider>
