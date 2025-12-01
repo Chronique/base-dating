@@ -30,14 +30,21 @@ type FarcasterUser = {
 function MatchModal({ partner, onClose }: { partner: string, onClose: () => void }) {
     const chatLink = `https://xmttp.chat/dm/${partner}`; 
     return (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] animate-in fade-in zoom-in p-4 touch-auto">
-            <div className="bg-white p-6 rounded-3xl text-center max-w-sm w-full shadow-2xl relative overflow-hidden">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in zoom-in p-4 touch-auto">
+            {/* Menggunakan bg-card dan text-card-foreground agar responsif tema */}
+            <div className="bg-card border border-border p-6 rounded-3xl text-center max-w-sm w-full shadow-2xl relative overflow-hidden">
                 <div className="text-6xl mb-4 animate-bounce">💖</div>
                 <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600 mb-2">IT'S A MATCH!</h2>
-                <p className="text-gray-500 mb-6 text-sm">You matched with <span className="font-mono bg-gray-100 px-1 rounded">{partner.slice(0,6)}...</span></p>
+                <p className="text-muted-foreground mb-6 text-sm">
+                   You matched with <span className="font-mono bg-secondary px-1 rounded text-foreground">{partner.slice(0,6)}...</span>
+                </p>
                 <div className="flex flex-col gap-3">
-                    <a href={chatLink} target="_blank" rel="noreferrer" className="bg-blue-600 text-white py-3 px-6 rounded-xl font-bold shadow-lg">💬 Chat on XMTP</a>
-                    <button onClick={onClose} className="bg-gray-100 text-gray-700 py-3 px-6 rounded-xl font-bold">Keep Swiping</button>
+                    <a href={chatLink} target="_blank" rel="noreferrer" className="bg-primary text-primary-foreground hover:bg-primary/90 py-3 px-6 rounded-xl font-bold shadow-lg transition-colors">
+                        💬 Chat on XMTP
+                    </a>
+                    <button onClick={onClose} className="bg-secondary text-secondary-foreground hover:bg-secondary/80 py-3 px-6 rounded-xl font-bold transition-colors">
+                        Keep Swiping
+                    </button>
                 </div>
             </div>
         </div>
@@ -62,19 +69,16 @@ export default function Home() {
   const { data: balance } = useBalance({ address });
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
-  // Jika belum connect, anggap network benar dulu agar tidak blocking UI
   const isWrongNetwork = isConnected && chainId !== base.id;
   const hasAttemptedAutoConnect = useRef(false);
 
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. INIT & LOAD CONTEXT (Wajib untuk identitas user)
+  // 1. INIT & LOAD CONTEXT
   useEffect(() => {
     const initFast = async () => {
       setMounted(true);
-      
-      // Load LocalStorage
       if (typeof window !== 'undefined') {
           const savedQueue = localStorage.getItem('baseDatingQueue');
           const savedGender = localStorage.getItem('baseDatingGender');
@@ -87,8 +91,6 @@ export default function Home() {
           if (savedGender) setMyGender(savedGender as 'male' | 'female');
       }
       setIsStorageLoaded(true);
-
-      // Load Farcaster Context
       try {
         const ctx = await sdk.context;
         setContext(ctx);
@@ -137,15 +139,12 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 4. SILENT AUTO CONNECT (Background)
-  // Kita coba connect, tapi UI tidak menunggu ini.
+  // 4. SILENT AUTO CONNECT
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
-        
         const farcasterWallet = connectors.find(c => c.id === 'injected');
         if (farcasterWallet) {
-            // Connect diam-diam
             connect({ connector: farcasterWallet });
         }
     }
@@ -160,9 +159,7 @@ export default function Home() {
     eventName: 'NewMatch',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onLogs(logs) {
-        // Jika belum connect, address undefined, event listener ini aman (tidak error)
         if (!address) return; 
-        
         const myAddr = address.toLowerCase();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         logs.forEach((log: any) => {
@@ -177,32 +174,24 @@ export default function Home() {
 
   const handleSwipe = (dir: string, profile: FarcasterUser) => {
     const liked = dir === 'right';
-    
     if (queueAddr.length < 50) {
         setQueueAddr((prev) => [...prev, profile.custody_address]);
         setQueueLikes((prev) => [...prev, liked]);
     }
-
     setProfiles((current) => current.filter(p => p.custody_address !== profile.custody_address));
   };
 
-  // Logic tombol Save: Cek koneksi dulu, baru transaksi
   const handleSaveAction = () => {
-    // 1. Jika belum connect, connect dulu (ini akan memunculkan popup wallet native)
     if (!isConnected) {
         const farcasterWallet = connectors.find(c => c.id === 'injected');
         if (farcasterWallet) {
             connect({ connector: farcasterWallet });
-            // Kita return dulu, user harus klik lagi setelah connect (atau bisa dibuat async await jika connector mendukung)
-            // Tapi standard UX web3 biasanya klik connect -> wallet popup -> user approve -> connected -> user klik save lagi.
             return; 
         } else {
             alert("No wallet found!");
             return;
         }
     }
-
-    // 2. Jika sudah connect, langsung transaksi
     commitSwipes(queueAddr, queueLikes);
   };
 
@@ -227,47 +216,48 @@ export default function Home() {
 
   if (!mounted) return null;
 
-  // Tidak ada lagi "if (!isConnected) return ...". 
-  // Aplikasi langsung dirender.
-
   if (isWrongNetwork) return (
-        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-red-50 p-4 text-center overflow-hidden touch-none">
-            <h2 className="text-2xl font-bold text-red-600 mb-2">Wrong Network ⚠️</h2>
-            <button onClick={() => switchChain({ chainId: base.id })} className="bg-red-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-red-700">🔀 Switch Network</button>
+        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-background p-4 text-center overflow-hidden touch-none">
+            <h2 className="text-2xl font-bold text-destructive mb-2">Wrong Network ⚠️</h2>
+            <button onClick={() => switchChain({ chainId: base.id })} className="bg-destructive text-destructive-foreground px-8 py-3 rounded-full font-bold shadow-lg hover:bg-destructive/90">🔀 Switch Network</button>
         </main>
     );
 
   if (!myGender) return (
-        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-white p-4 text-center overflow-hidden touch-none">
+        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-background p-4 text-center overflow-hidden touch-none">
             <div className="flex flex-col gap-4 w-full max-w-xs">
-                <button onClick={() => setMyGender('male')} className="bg-blue-100 border-2 border-blue-500 text-blue-700 p-6 rounded-2xl text-xl font-bold">👨 I am a Man</button>
-                <button onClick={() => setMyGender('female')} className="bg-pink-100 border-2 border-pink-500 text-pink-700 p-6 rounded-2xl text-xl font-bold">👩 I am a Woman</button>
+                <button onClick={() => setMyGender('male')} className="bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 text-blue-700 dark:text-blue-300 p-6 rounded-2xl text-xl font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">👨 I am a Man</button>
+                <button onClick={() => setMyGender('female')} className="bg-pink-100 dark:bg-pink-900/30 border-2 border-pink-500 text-pink-700 dark:text-pink-300 p-6 rounded-2xl text-xl font-bold hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-colors">👩 I am a Woman</button>
             </div>
         </main>
       );
 
   return (
-    <main className="fixed inset-0 h-[100dvh] w-full bg-gray-50 flex flex-col items-center justify-center relative overflow-hidden touch-none">
+    // Menggunakan bg-background dan text-foreground agar mengikuti tema
+    <main className="fixed inset-0 h-[100dvh] w-full bg-background flex flex-col items-center justify-center relative overflow-hidden touch-none text-foreground">
       
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
       <div className="absolute top-4 left-4 z-50 pointer-events-auto">
-         {/* Tampilkan saldo jika connect, atau loading/status jika belum */}
-         <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm shadow-md flex items-center gap-2">
+         <div className="bg-card/80 backdrop-blur-md text-card-foreground border border-border text-xs px-3 py-1 rounded-full shadow-md flex items-center gap-2">
             {isConnected ? (
                <>💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : '...'}</>
             ) : (
-               <span className="opacity-70">🔌 Connecting...</span>
+               <span className="opacity-70 flex items-center gap-1">
+                 <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span> Connecting...
+               </span>
             )}
          </div>
       </div>
       
       <div className="absolute top-4 right-4 z-50 pointer-events-auto">
-         <div className={`px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2 ${isPending ? 'bg-orange-100 border-orange-300' : 'bg-white'}`}>
+         <div className={`px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2 backdrop-blur-md ${
+            isPending ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700' : 'bg-card/80 border-border text-card-foreground'
+         }`}>
             {isPending ? (
-                <span className="text-orange-600 font-bold">Confirming...</span>
+                <span className="text-orange-600 dark:text-orange-400 font-bold">Confirming...</span>
             ) : (
-                txError ? <span className="text-red-500 font-bold cursor-pointer" onClick={() => commitSwipes(queueAddr, queueLikes)}>❌ Retry?</span> : <span>💾 {queueAddr.length}/50</span>
+                txError ? <span className="text-destructive font-bold cursor-pointer" onClick={() => commitSwipes(queueAddr, queueLikes)}>❌ Retry?</span> : <span>💾 {queueAddr.length}/50</span>
             )}
          </div>
       </div>
@@ -276,8 +266,9 @@ export default function Home() {
           <div className="relative w-72 h-96 pointer-events-auto">
             {isLoadingUsers && filteredProfiles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full">
-                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="mt-4 text-gray-500 animate-pulse">Finding people...</p>
+                    {/* Spinner warna primary */}
+                    <div className="w-12 h-12 border-4 border-muted border-t-primary rounded-full animate-spin"></div>
+                    <p className="mt-4 text-muted-foreground animate-pulse">Finding people...</p>
                 </div>
             ) : filteredProfiles.length > 0 ? (
                 filteredProfiles.map((profile) => (
@@ -289,8 +280,8 @@ export default function Home() {
                 ))
             ) : (
                 <div className="text-center pointer-events-auto">
-                    <p className="text-gray-600 text-lg mb-2">No more profiles! 💔</p>
-                    <button onClick={() => window.location.reload()} className="bg-blue-500 text-white px-6 py-2 rounded-full mb-4 shadow">Refresh Users</button>
+                    <p className="text-muted-foreground text-lg mb-2">No more profiles! 💔</p>
+                    <button onClick={() => window.location.reload()} className="bg-primary text-primary-foreground px-6 py-2 rounded-full mb-4 shadow hover:bg-primary/90 transition-colors">Refresh Users</button>
                 </div>
             )}
           </div>
@@ -303,8 +294,8 @@ export default function Home() {
                 disabled={isPending}
                 className={`w-full max-w-xs py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${
                     queueAddr.length >= 50 
-                        ? "bg-red-600 animate-bounce" 
-                        : "bg-black hover:bg-gray-800"
+                        ? "bg-destructive hover:bg-destructive/90 animate-bounce" 
+                        : "bg-foreground text-background hover:bg-foreground/90"
                 } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
             >
                 {isPending 
