@@ -56,30 +56,25 @@ export default function Home() {
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
   const [matchPartner, setMatchPartner] = useState<string | null>(null);
-  
-  // 👇 State baru untuk menangani tampilan tombol jika auto-connect macet
-  const [showConnectButtons, setShowConnectButtons] = useState(false); 
 
   const { isConnected, address } = useAccount();
   const { connectors, connect } = useConnect(); 
   const { data: balance } = useBalance({ address });
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
+  // Jika belum connect, anggap network benar dulu agar tidak blocking UI
   const isWrongNetwork = isConnected && chainId !== base.id;
   const hasAttemptedAutoConnect = useRef(false);
-
-  // Filter connector agar bersih
-  const filteredConnectors = connectors.filter((c) => 
-    c.id === 'coinbaseWalletSDK' || c.name.toLowerCase().includes('metamask') || c.id === 'injected'
-  );
 
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. INIT
+  // 1. INIT & LOAD CONTEXT (Wajib untuk identitas user)
   useEffect(() => {
     const initFast = async () => {
       setMounted(true);
+      
+      // Load LocalStorage
       if (typeof window !== 'undefined') {
           const savedQueue = localStorage.getItem('baseDatingQueue');
           const savedGender = localStorage.getItem('baseDatingGender');
@@ -92,11 +87,13 @@ export default function Home() {
           if (savedGender) setMyGender(savedGender as 'male' | 'female');
       }
       setIsStorageLoaded(true);
+
+      // Load Farcaster Context
       try {
         const ctx = await sdk.context;
         setContext(ctx);
         sdk.actions.ready();
-      } catch (err) { console.log("Browser Mode"); }
+      } catch (err) { console.log("Browser Mode / No Context"); }
     };
     initFast();
   }, []);
@@ -140,36 +137,19 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 4. AUTO CONNECT + FALLBACK TIMEOUT
+  // 4. SILENT AUTO CONNECT (Background)
+  // Kita coba connect, tapi UI tidak menunggu ini.
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
         
         const farcasterWallet = connectors.find(c => c.id === 'injected');
         if (farcasterWallet) {
+            // Connect diam-diam
             connect({ connector: farcasterWallet });
         }
-
-        // 👇 TIMEOUT: Jika dalam 2 detik belum konek, munculkan tombol manual
-        const timer = setTimeout(() => {
-            if (!isConnected) {
-                setShowConnectButtons(true);
-            }
-        }, 2000); // 2 detik
-
-        return () => clearTimeout(timer);
-    } else if (mounted && !isConnected && !context) {
-        // Jika di browser biasa (bukan frame), langsung munculkan tombol
-        setShowConnectButtons(true);
     }
   }, [mounted, context, isConnected, connectors, connect]);
-
-  // Jika status berubah jadi connected, sembunyikan tombol lagi
-  useEffect(() => {
-    if (isConnected) {
-        setShowConnectButtons(false);
-    }
-  }, [isConnected]);
 
   const filteredProfiles = profiles.filter(p => p.gender !== myGender)
     .filter(p => queueAddr.length < 50 ? !queueAddr.includes(p.custody_address) : true);
@@ -180,7 +160,10 @@ export default function Home() {
     eventName: 'NewMatch',
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onLogs(logs) {
-        const myAddr = address?.toLowerCase();
+        // Jika belum connect, address undefined, event listener ini aman (tidak error)
+        if (!address) return; 
+        
+        const myAddr = address.toLowerCase();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         logs.forEach((log: any) => {
             const { user1, user2 } = log.args;
@@ -201,6 +184,26 @@ export default function Home() {
     }
 
     setProfiles((current) => current.filter(p => p.custody_address !== profile.custody_address));
+  };
+
+  // Logic tombol Save: Cek koneksi dulu, baru transaksi
+  const handleSaveAction = () => {
+    // 1. Jika belum connect, connect dulu (ini akan memunculkan popup wallet native)
+    if (!isConnected) {
+        const farcasterWallet = connectors.find(c => c.id === 'injected');
+        if (farcasterWallet) {
+            connect({ connector: farcasterWallet });
+            // Kita return dulu, user harus klik lagi setelah connect (atau bisa dibuat async await jika connector mendukung)
+            // Tapi standard UX web3 biasanya klik connect -> wallet popup -> user approve -> connected -> user klik save lagi.
+            return; 
+        } else {
+            alert("No wallet found!");
+            return;
+        }
+    }
+
+    // 2. Jika sudah connect, langsung transaksi
+    commitSwipes(queueAddr, queueLikes);
   };
 
   const commitSwipes = (addrs: string[], likes: boolean[]) => {
@@ -224,42 +227,8 @@ export default function Home() {
 
   if (!mounted) return null;
 
-  // 🔥 TAMPILAN LOGIN (Auto Connect / Manual Fallback)
-  if (!isConnected) return (
-        <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-white p-4 text-center overflow-hidden touch-none">
-             {/* Logo & Branding */}
-             <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500 mb-8">
-                <div className="text-6xl mb-4 animate-bounce">🔵</div>
-                <h1 className="text-4xl font-black text-blue-600 mb-2 tracking-tighter">Base Dating</h1>
-                <p className="text-gray-400 text-sm font-medium">Find your on-chain match</p>
-             </div>
-
-             {/* 👇 LOGIC TAMPILAN: Loading vs Tombol */}
-             {!showConnectButtons ? (
-                // TAMPILAN LOADING (Sedang Auto Connect)
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-                    <p className="text-gray-400 text-xs font-mono animate-pulse">
-                        {context ? "Authenticating..." : "Initializing..."}
-                    </p>
-                </div>
-             ) : (
-                // TAMPILAN TOMBOL MANUAL (Fallback jika auto connect lama/gagal)
-                <div className="flex flex-col gap-3 w-full max-w-xs animate-in slide-in-from-bottom-5 duration-300">
-                    {filteredConnectors.map((connector) => (
-                        <button 
-                            key={connector.uid} 
-                            onClick={() => connect({ connector })} 
-                            className="bg-white border-2 border-blue-100 text-blue-600 hover:bg-blue-50 hover:border-blue-600 px-6 py-4 rounded-2xl font-bold transition-all shadow-sm active:scale-95 flex items-center justify-center gap-3"
-                        >
-                            <span>🔌</span> Connect {connector.name}
-                        </button>
-                    ))}
-                    <p className="text-xs text-gray-300 mt-4">Tap to connect manually</p>
-                </div>
-             )}
-        </main>
-    );
+  // Tidak ada lagi "if (!isConnected) return ...". 
+  // Aplikasi langsung dirender.
 
   if (isWrongNetwork) return (
         <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-red-50 p-4 text-center overflow-hidden touch-none">
@@ -283,10 +252,16 @@ export default function Home() {
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
       <div className="absolute top-4 left-4 z-50 pointer-events-auto">
-         <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm shadow-md">
-            💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : '...'}
+         {/* Tampilkan saldo jika connect, atau loading/status jika belum */}
+         <div className="bg-black/80 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm shadow-md flex items-center gap-2">
+            {isConnected ? (
+               <>💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : '...'}</>
+            ) : (
+               <span className="opacity-70">🔌 Connecting...</span>
+            )}
          </div>
       </div>
+      
       <div className="absolute top-4 right-4 z-50 pointer-events-auto">
          <div className={`px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2 ${isPending ? 'bg-orange-100 border-orange-300' : 'bg-white'}`}>
             {isPending ? (
@@ -324,7 +299,7 @@ export default function Home() {
       {queueAddr.length > 0 && (
           <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
             <button 
-                onClick={() => commitSwipes(queueAddr, queueLikes)} 
+                onClick={handleSaveAction} 
                 disabled={isPending}
                 className={`w-full max-w-xs py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${
                     queueAddr.length >= 50 
@@ -332,7 +307,10 @@ export default function Home() {
                         : "bg-black hover:bg-gray-800"
                 } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
             >
-                {isPending ? "⏳ Processing..." : (queueAddr.length >= 50 ? "⛽ Pay Gas to Continue Swiping" : `Save Progress (${queueAddr.length})`)}
+                {isPending 
+                    ? "⏳ Processing..." 
+                    : (queueAddr.length >= 50 ? "⛽ Pay Gas to Continue Swiping" : (!isConnected ? "🔌 Connect & Save" : `Save Progress (${queueAddr.length})`))
+                }
             </button>
           </div>
       )}
