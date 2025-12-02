@@ -13,6 +13,8 @@ export type Profile = {
   bio?: string | null;
   pfp_url?: string | null;
   custody_address?: string | null;
+  // 👇 Tambah field lokasi
+  location?: string | null; 
   gender?: "male" | "female";
   type?: "farcaster" | "base";
 };
@@ -28,25 +30,23 @@ export function SwipeCard({
     ? (profile.custody_address as `0x${string}`)
     : undefined;
 
-  // 1. Ambil Basename (Hanya satu kali deklarasi)
+  // 1. Ambil Basename
   const { data: basename } = useName({
     address,
     chain: base,
   });
 
-  // 2. Ambil Avatar Onchain menggunakan basename yang didapat di atas
+  // 2. Ambil Avatar
   const { data: onchainAvatar } = useAvatar({
-    ensName: basename ?? "", // Gunakan basename sebagai input, fallback string kosong
+    ensName: basename ?? "", 
     chain: base,
   });
 
-  // Logika Nama: Pakai Basename kalau ada, kalau nggak pakai display name Farcaster
   const displayName = useMemo(
     () => basename || profile.display_name || profile.username || "Unknown",
     [basename, profile.display_name, profile.username]
   );
 
-  // Logika Gambar: Prioritaskan Onchain Avatar, fallback ke Farcaster PFP
   const displayImage = onchainAvatar || profile.pfp_url || "";
 
   const onCardLeftScreen = (direction: string) => {
@@ -73,7 +73,6 @@ export function SwipeCard({
                 className="object-cover pointer-events-none"
                 sizes="(max-width: 768px) 100vw, 300px"
                 priority={true}
-                // Handle GIF atau URL eksternal dengan aman
                 unoptimized={true}
               />
             ) : (
@@ -86,7 +85,6 @@ export function SwipeCard({
 
           {/* BADGE TIPE USER */}
           <div className="absolute top-4 left-4 flex gap-2 z-10">
-            {/* Kalau punya Basename, kasih badge Biru */}
             {basename && (
               <div className="px-3 py-1 bg-blue-600/90 backdrop-blur-md rounded-full text-[10px] text-white font-bold border border-blue-400/30 shadow-lg animate-pulse">
                 🔵 BASENAME
@@ -100,14 +98,22 @@ export function SwipeCard({
               <h2 className="text-2xl font-black truncate max-w-[220px] drop-shadow-md tracking-tight">
                 {displayName}
               </h2>
-              {/* Tampilkan address pendek kalau belum punya Basename */}
-              {!basename && address && (
-                <span className="text-[10px] font-mono opacity-60 bg-black/20 w-fit px-1 rounded">
-                  {address.slice(0, 6)}...{address.slice(-4)}
-                </span>
-              )}
+              {/* 👇 Tampilkan Lokasi atau Address */}
+              <div className="flex items-center gap-1 opacity-80">
+                {profile.location ? (
+                   <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-medium">
+                     📍 {profile.location}
+                   </span>
+                ) : (
+                  !basename && address && (
+                    <span className="text-[10px] font-mono opacity-60 bg-black/20 w-fit px-1 rounded">
+                      {address.slice(0, 6)}...{address.slice(-4)}
+                    </span>
+                  )
+                )}
+              </div>
             </div>
-
+            
             <p className="text-sm text-gray-200 line-clamp-2 leading-relaxed opacity-90 font-medium">
               {profile.bio || "No bio available ✨"}
             </p>
