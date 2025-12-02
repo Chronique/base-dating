@@ -1,12 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
 
-/* 👇 3 BARIS INI WAJIB ADA DI ATAS (JANGAN DIHAPUS) */
+/* 👇 3 BARIS INI WAJIB ADA DI ATAS */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
+    /* 👇 PENTING: Memberitahu browser/webview bahwa app support kedua mode */
+    /* Ini membantu scrollbar dan elemen sistem ikut berubah warna */
+    color-scheme: light dark; 
+
     /* Mode Terang (Light) */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -32,6 +36,7 @@
  
   .dark {
     /* Mode Gelap (Dark) */
+    /* Pastikan background di sini gelap (222.2 ...), bukan 0 0% 100% */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
@@ -64,7 +69,7 @@
   }
 }
 
-/* Utilities tambahan untuk sembunyikan scrollbar */
+/* Utilities tambahan */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
