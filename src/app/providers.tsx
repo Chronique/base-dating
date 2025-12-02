@@ -5,17 +5,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { base } from "wagmi/chains"; 
 import { type ReactNode, useState } from "react";
 import { type State, WagmiProvider, createConfig, http } from "wagmi";
-import { coinbaseWallet, injected, metaMask } from "wagmi/connectors"; 
+import { coinbaseWallet, injected, metaMask } from "wagmi/connectors";
+// 👇 Import ThemeProvider
+import { ThemeProvider } from "next-themes"; 
 
 const getConfig = () => {
   return createConfig({
     chains: [base],
     transports: {
-      // ✅ FIX: Menggunakan RPC dari env variable agar tidak antre di jalur public
       [base.id]: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL), 
     },
     connectors: [
-      injected(), // Prioritas untuk Farcaster Frame
+      injected(), 
       coinbaseWallet({
         appName: "Base Dating",
         preference: "all", 
@@ -40,7 +41,15 @@ export function Providers(props: {
           apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
           chain={base}
         >
-          {props.children}
+          {/* 👇 Tambahkan ThemeProvider di sini */}
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system" // 🔥 Ini kuncinya: mengikuti sistem HP/Farcaster
+            enableSystem
+            disableTransitionOnChange
+          >
+            {props.children}
+          </ThemeProvider>
         </OnchainKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

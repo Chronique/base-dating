@@ -71,7 +71,6 @@ export default function Home() {
   const isWrongNetwork = isConnected && chainId !== base.id;
   const hasAttemptedAutoConnect = useRef(false);
 
-  // 👇 FIX: Hapus 'isLoading: isPending' karena properti aslinya memang 'isPending'
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
@@ -133,7 +132,6 @@ export default function Home() {
         const data = await resp.json();
         if (data?.users && Array.isArray(data.users)) {
           const fcUsers: FarcasterUser[] = data.users
-            // 👇 FIX: Tambahkan ': any' agar TypeScript tidak marah
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .map((u: any) => {
               const ethAddr =
@@ -303,7 +301,6 @@ export default function Home() {
 
   if (!mounted) return null;
 
-  // 👇 FIX: Hapus 'relative' agar tidak bentrok dengan 'fixed'
   if (isWrongNetwork)
     return (
       <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-background p-4 text-center overflow-hidden touch-none">
@@ -369,7 +366,6 @@ export default function Home() {
     );
 
   return (
-    // 👇 FIX: Hapus 'relative' dari sini untuk menghilangkan conflict warning
     <main className="fixed inset-0 h-[100dvh] w-full bg-background flex flex-col items-center justify-center overflow-hidden touch-none text-foreground">
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
@@ -432,12 +428,21 @@ export default function Home() {
         </div>
       </div>
 
-      {/* FLOATING SAVE BUTTON */}
+      {/* FLOATING SAVE BUTTON - PERBAIKAN WARNA TEKS */}
       <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
         <button
           onClick={handleSaveAction}
           disabled={isPending || (isConnected && queueAddr.length === 0)}
-          className={`w-full max-w-xs py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${queueAddr.length >= 50 ? "bg-destructive hover:bg-destructive/90 animate-bounce" : (isConnected && queueAddr.length === 0 ? "bg-muted text-muted-foreground cursor-default shadow-none" : "bg-primary hover:bg-primary/90")} ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
+          // 👇 PERUBAHAN DISINI:
+          // 1. Hapus 'text-white' dari string utama.
+          // 2. Tambahkan warna teks eksplisit di setiap kondisi (text-destructive-foreground, text-muted-foreground, text-primary-foreground)
+          className={`w-full max-w-xs py-4 rounded-full font-bold shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${
+            queueAddr.length >= 50
+              ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-bounce"
+              : (isConnected && queueAddr.length === 0
+                  ? "bg-muted text-muted-foreground cursor-default shadow-none"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90")
+          } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
         >
           {isPending ? "⏳ Processing..." : (!isConnected ? "🔌 Connect Wallet" : (queueAddr.length === 0 ? "Swipe to Start" : (queueAddr.length >= 50 ? "⛽ Pay Gas Now" : `Save Progress (${queueAddr.length})`)))}
         </button>

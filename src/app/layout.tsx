@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import "./globals.css"; // Sesuaikan path jika pakai ~
+import "./globals.css";
 import { Providers } from "./providers";
 
-// 👇 GANTI INI DENGAN LINK VERCEL KAMU YANG ASLI!
 const appUrl = "https://base-dating.vercel.app"; 
 
 export const metadata: Metadata = {
@@ -14,18 +13,17 @@ export const metadata: Metadata = {
     url: appUrl,
     siteName: "Base Dating",
   },
-  // 👇 INI YANG KURANG TADI (KTP AGAR JADI MINI APP)
   other: {
     "fc:frame": JSON.stringify({
       version: "next",
-      imageUrl: `${appUrl}/opener-image.png`, // Pastikan ada gambar default (opsional)
+      imageUrl: `${appUrl}/opener-image.png`,
       button: {
         title: "Start Matching",
         action: {
           type: "launch_frame",
           name: "Base Dating",
           url: appUrl,
-          splashImageUrl: `${appUrl}/icon.png`, // Icon saat loading
+          splashImageUrl: `${appUrl}/icon.png`,
           splashBackgroundColor: "#ffffff",
         },
       },
@@ -39,7 +37,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // 👇 PERUBAHAN: Tambahkan suppressHydrationWarning di sini
+    <html lang="en" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
       </body>
