@@ -59,7 +59,6 @@ export default function Home() {
 
   const [myGender, setMyGender] = useState<'male' | 'female' | null>(null);
   
-  // 👇 State baru untuk mengontrol halaman intro (1 = Welcome, 2 = How to/Select)
   const [introStep, setIntroStep] = useState<1 | 2>(1); 
 
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
@@ -78,7 +77,7 @@ export default function Home() {
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. INIT & LOAD CONTEXT
+  // 1. INIT
   useEffect(() => {
     const initFast = async () => {
       setMounted(true);
@@ -110,6 +109,7 @@ export default function Home() {
       setIsLoadingUsers(true);
       try {
         const randomStart = Math.floor(Math.random() * 10000) + 1;
+        // Ambil 25 user agar ringan
         const randomFids = Array.from({ length: 25 }, (_, i) => randomStart + i).join(',');
         const response = await fetch(`https://api.neynar.com/v2/farcaster/user/bulk?fids=${randomFids}`, {
             headers: { accept: 'application/json', api_key: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || 'NEYNAR_API_DOCS' }
@@ -142,7 +142,7 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 4. SILENT AUTO CONNECT
+  // 4. AUTO CONNECT
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
         hasAttemptedAutoConnect.current = true;
@@ -226,11 +226,9 @@ export default function Home() {
         </main>
     );
 
-  // 🔥 ONBOARDING FLOW
+  // ONBOARDING
   if (!myGender) return (
     <main className="fixed inset-0 h-[100dvh] w-full flex flex-col items-center justify-center bg-background p-6 text-center overflow-y-auto touch-auto">
-        
-        {/* STEP 1: WHAT IS THIS */}
         {introStep === 1 && (
             <div className="flex flex-col items-center max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="text-6xl mb-6 animate-bounce">🔵</div>
@@ -255,78 +253,48 @@ export default function Home() {
                     </div>
                 </div>
 
-                <button 
-                    onClick={() => setIntroStep(2)}
-                    className="w-full bg-primary text-primary-foreground p-4 rounded-xl font-bold text-lg shadow-lg hover:bg-primary/90 transition-all"
-                >
-                    Next
-                </button>
+                <button onClick={() => setIntroStep(2)} className="w-full bg-primary text-primary-foreground p-4 rounded-xl font-bold text-lg shadow-lg hover:bg-primary/90 transition-all">Next</button>
             </div>
         )}
 
-        {/* STEP 2: HOW IT WORKS & GENDER SELECTION */}
         {introStep === 2 && (
             <div className="flex flex-col items-center max-w-md w-full animate-in fade-in slide-in-from-right-4 duration-500">
                  <h2 className="text-2xl font-bold text-foreground mb-6">How it works</h2>
-                 
                  <div className="w-full space-y-3 mb-8">
-                    {[
-                        "Select your gender",
-                        "Get random Farcaster profiles",
-                        "Swipe like/dislike (stored locally)",
-                        "Pay gas after 50 swipes to save on-chain",
-                        "Mutual likes = Match = Chat! 🚀"
-                    ].map((text, i) => (
+                    {["Select your gender", "Get random Farcaster profiles", "Swipe like/dislike (stored locally)", "Pay gas after 50 swipes to save on-chain", "Mutual likes = Match = Chat! 🚀"].map((text, i) => (
                         <div key={i} className="flex items-center gap-3 bg-secondary/50 p-3 rounded-lg">
-                            <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                {i + 1}
-                            </div>
+                            <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</div>
                             <p className="text-sm text-left font-medium text-foreground">{text}</p>
                         </div>
                     ))}
                  </div>
-
                 <p className="text-muted-foreground mb-4 font-medium">Select your gender to start:</p>
-                
                 <div className="w-full space-y-3">
-                    <button onClick={() => setMyGender('male')} className="w-full bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 text-blue-700 dark:text-blue-300 p-4 rounded-xl font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all">
-                        👨 I am a Man
-                    </button>
-                    <button onClick={() => setMyGender('female')} className="w-full bg-pink-100 dark:bg-pink-900/30 border-2 border-pink-500 text-pink-700 dark:text-pink-300 p-4 rounded-xl font-bold hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-all">
-                        👩 I am a Woman
-                    </button>
+                    <button onClick={() => setMyGender('male')} className="w-full bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 text-blue-700 dark:text-blue-300 p-4 rounded-xl font-bold hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all">👨 I am a Man</button>
+                    <button onClick={() => setMyGender('female')} className="w-full bg-pink-100 dark:bg-pink-900/30 border-2 border-pink-500 text-pink-700 dark:text-pink-300 p-4 rounded-xl font-bold hover:bg-pink-200 dark:hover:bg-pink-900/50 transition-all">👩 I am a Woman</button>
                 </div>
-                
-                <button 
-                    onClick={() => setIntroStep(1)}
-                    className="mt-6 text-xs text-muted-foreground underline"
-                >
-                    Back to Intro
-                </button>
+                <button onClick={() => setIntroStep(1)} className="mt-6 text-xs text-muted-foreground underline">Back to Intro</button>
             </div>
         )}
-
     </main>
   );
 
   return (
     <main className="fixed inset-0 h-[100dvh] w-full bg-background flex flex-col items-center justify-center relative overflow-hidden touch-none text-foreground">
-      
       {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
 
-      {/* HEADER STATUS */}
+      {/* HEADER */}
       <div className="absolute top-4 left-4 z-50 pointer-events-auto">
          <div className="bg-card/80 backdrop-blur-md text-card-foreground border border-border text-xs px-3 py-1 rounded-full shadow-md flex items-center gap-2">
             {isConnected ? (
                <>💰 {balance ? `${Number(balance.formatted).toFixed(4)} ETH` : '...'}</>
             ) : (
-               <span className="opacity-70 flex items-center gap-1">
-                 <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span> Connecting...
-               </span>
+               <span className="opacity-70 flex items-center gap-1"><span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span> Connecting...</span>
             )}
          </div>
       </div>
       
+      {/* SWIPE COUNTER */}
       <div className="absolute top-4 right-4 z-50 pointer-events-auto">
          <div className={`px-3 py-1 rounded-full shadow text-sm font-mono border flex items-center gap-2 backdrop-blur-md ${
             isPending ? 'bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-700' : 'bg-card/80 border-border text-card-foreground'
@@ -341,7 +309,8 @@ export default function Home() {
 
       {/* CARD STACK */}
       <div className="relative w-full h-full flex items-center justify-center pointer-events-none z-10">
-          <div className="relative w-72 h-96 pointer-events-auto">
+          {/* 👇 Container Ukuran Pas: w-64 h-80 */}
+          <div className="relative w-64 h-80 pointer-events-auto">
             {isLoadingUsers && filteredProfiles.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full">
                     <div className="w-12 h-12 border-4 border-muted border-t-primary rounded-full animate-spin"></div>
@@ -364,8 +333,8 @@ export default function Home() {
           </div>
       </div>
 
-      {/* VISUAL HINTS (Static) */}
-      <div className="absolute top-1/2 w-full flex justify-between px-8 pointer-events-none z-0 transform -translate-y-1/2">
+      {/* VISUAL HINTS (Static) - Di belakang kartu */}
+      <div className="absolute top-1/2 w-full flex justify-between px-4 pointer-events-none z-0 transform -translate-y-1/2">
          <div className="flex flex-col items-center opacity-20 dark:opacity-30">
             <span className="text-5xl">❌</span>
             <span className="font-black text-destructive tracking-widest mt-2 text-xl">NOPE</span>
@@ -376,16 +345,15 @@ export default function Home() {
          </div>
       </div>
 
-      {/* TOMBOL FLOATING BOTTOM */}
+      {/* TOMBOL FLOATING BOTTOM - SELALU MUNCUL */}
       <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
-        {(!isConnected || queueAddr.length > 0) && (
             <button 
                 onClick={handleSaveAction} 
-                disabled={isPending}
+                disabled={isPending || (isConnected && queueAddr.length === 0)}
                 className={`w-full max-w-xs py-4 rounded-full font-bold text-white shadow-2xl transform transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${
                     queueAddr.length >= 50 
                         ? "bg-destructive hover:bg-destructive/90 animate-bounce" 
-                        : "bg-primary hover:bg-primary/90"
+                        : (isConnected && queueAddr.length === 0 ? "bg-muted text-muted-foreground cursor-default shadow-none" : "bg-primary hover:bg-primary/90")
                 } ${isPending ? "opacity-70 cursor-not-allowed animate-none" : ""}`}
             >
                 {isPending 
@@ -393,11 +361,10 @@ export default function Home() {
                     : (
                         !isConnected 
                            ? "🔌 Connect Wallet" 
-                           : (queueAddr.length >= 50 ? "⛽ Pay Gas Now" : `Save Progress (${queueAddr.length})`)
+                           : (queueAddr.length === 0 ? "Swipe to Start" : (queueAddr.length >= 50 ? "⛽ Pay Gas Now" : `Save Progress (${queueAddr.length})`))
                       )
                 }
             </button>
-        )}
       </div>
     </main>
   );

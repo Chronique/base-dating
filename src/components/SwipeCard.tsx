@@ -2,7 +2,7 @@
 
 import React from "react";
 import TinderCard from "react-tinder-card"; 
-import Image from "next/image"; // 👈 Import ini
+import Image from "next/image"; 
 import { useName } from "@coinbase/onchainkit/identity"; 
 import { base } from "wagmi/chains";
 
@@ -42,25 +42,25 @@ export function SwipeCard({ profile, onSwipe }: {
         swipeRequirementType="position"
         swipeThreshold={100} 
       >
-        {/* CONTAINER KARTU */}
-        <div className="relative w-72 h-96 bg-card rounded-3xl shadow-xl overflow-hidden border border-border select-none cursor-grab active:cursor-grabbing">
-            
-            {/* 👇 PERBAIKAN: Gunakan Next Image untuk performa HP */}
+        {/* 👇 UPDATE UKURAN DI SINI: w-64 h-80 (Lebih kecil) */}
+        <div 
+            className="relative w-64 h-80 bg-card rounded-3xl shadow-xl overflow-hidden border border-border select-none cursor-grab active:cursor-grabbing"
+        >
+            {/* IMAGE (Next.js Image Optimization) */}
             <div className="absolute inset-0 z-0">
                 <Image 
                     src={profile.pfp_url} 
                     alt={displayName || "User"}
                     fill
                     className="object-cover pointer-events-none"
-                    sizes="(max-width: 768px) 100vw, 300px" // Optimasi ukuran: di HP load kecil, di PC load sedang
-                    priority={true} // Load prioritas tinggi
-                    unoptimized={profile.pfp_url.endsWith('.gif')} // Khusus GIF biarkan unoptimized agar gerak
+                    sizes="(max-width: 768px) 100vw, 300px" 
+                    priority={true} 
+                    unoptimized={profile.pfp_url.endsWith('.gif')}
                 />
-                {/* Overlay Gelap agar teks terbaca */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/10" />
             </div>
 
-            {/* BADGE TIPE USER */}
+            {/* BADGE */}
             <div className="absolute top-4 left-4 px-3 py-1 bg-black/40 backdrop-blur-md rounded-full text-[10px] text-white font-bold flex items-center gap-1 border border-white/20 z-10">
                 {profile.type === 'base' ? '🔵 BASE' : '🟣 CAST'}
             </div>
@@ -68,7 +68,7 @@ export function SwipeCard({ profile, onSwipe }: {
             {/* INFO USER */}
             <div className="absolute bottom-0 left-0 w-full p-5 text-white z-10">
                 <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-2xl font-bold truncate max-w-[200px] drop-shadow-md">
+                    <h2 className="text-xl font-bold truncate max-w-[180px] drop-shadow-md">
                         {displayName}
                     </h2>
                     {basename && (
@@ -77,7 +77,7 @@ export function SwipeCard({ profile, onSwipe }: {
                         </span>
                     )}
                 </div>
-                <p className="text-sm text-gray-200 line-clamp-2 leading-relaxed opacity-90">
+                <p className="text-xs text-gray-200 line-clamp-2 leading-relaxed opacity-90">
                     {profile.bio}
                 </p>
             </div>
