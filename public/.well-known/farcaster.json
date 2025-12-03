@@ -4,7 +4,7 @@
     "payload": "eyJkb21haW4iOiJiYXNlLWRhdGluZy52ZXJjZWwuYXBwIn0",
     "signature": "fXRTpBQRKviWSp6yYV2De1vyhD4SQSDFcPjZ25qB3eJcPyRkuVIWOebiu3SCGFudkGQtyzL8x+0bYgMbJ0xg2hs="
   },
-  "frame": {
+  "miniapp": {
     "version": "1",
     "name": "Base Dating",
     "iconUrl": "https://base-dating.vercel.app/icon.png",
@@ -19,8 +19,13 @@
       "social",
       "base"
     ],
-     "baseBuilder": {
-        "allowedAddresses": ["0x4fba95e4772be6d37a0c931D00570Fe2c9675524"]
+    "screenshotUrls": [
+      "https://base-dating.vercel.app/screenshot.png"
+    ],
+    "baseBuilder": {
+      "allowedAddresses": [
+        "0x4fba95e4772be6d37a0c931D00570Fe2c9675524"
+      ]
     }
   }
 }

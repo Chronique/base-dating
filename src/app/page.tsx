@@ -13,11 +13,10 @@ import {
   useBalance,
 } from "wagmi";
 import { base } from "wagmi/chains";
-import { Wallet, MessageCircle } from "lucide-react"; // Icon tambahan
+import { Wallet, MessageCircle } from "lucide-react"; 
 import SwipeCard, { Profile as SwipeProfile } from "../components/SwipeCard";
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
-// Tipe data user
 type FarcasterUser = SwipeProfile & {
   fid: number;
   display_name?: string | null;
@@ -26,21 +25,6 @@ type FarcasterUser = SwipeProfile & {
   type: "farcaster" | "base";
   location?: string | null;
 };
-
-// DATA MANUAL (Untuk demo/fallback)
-const BASE_USERS: FarcasterUser[] = [
-  {
-    fid: 18, // FID Asli Jesse
-    username: "jesse.base.eth",
-    display_name: "Jesse Pollak",
-    pfp_url: "https://i.imgur.com/brcnijg.png", 
-    custody_address: "0x8C4E43d88A42407705874B11d8B3eeF88651C8C8", // Address Dummy untuk demo
-    bio: "Creator of Base. Let's build onchain.",
-    gender: "male",
-    type: "base",
-    location: "San Francisco, US 🇺🇸"
-  },
-];
 
 // Helper: Ambil "Negara/Wilayah" dari string lokasi
 const getBroadLocation = (loc?: string | null) => {
@@ -55,7 +39,7 @@ const isWarpcastClient = (context: any) => {
   return context?.client?.clientFid === 9152;
 };
 
-// KOMPONEN MODAL MATCH (Updated)
+// KOMPONEN MODAL MATCH
 function MatchModal({ 
   partner, 
   isWarpcast, 
@@ -65,9 +49,6 @@ function MatchModal({
   isWarpcast: boolean; 
   onClose: () => void 
 }) {
-  // 👇 LOGIKA SMART CHAT LINK
-  // Kalau di Warpcast -> Buka Direct Cast (DM) Warpcast
-  // Kalau di Base App -> Buka XMTP
   const chatLink = isWarpcast 
     ? `https://warpcast.com/~/inbox/create/${partner.fid}`
     : `https://xmttp.chat/dm/${partner.custody_address}`;
@@ -76,7 +57,6 @@ function MatchModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in zoom-in p-4 touch-auto">
-      {/* 👇 FIX WARNA SOLID (Gak Transparan Lagi) */}
       <div className="bg-white dark:bg-neutral-900 border-2 border-primary/20 p-6 rounded-3xl text-center max-w-sm w-full shadow-2xl relative overflow-hidden">
         
         {/* Glow Effect */}
@@ -124,7 +104,6 @@ export default function Home() {
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
-  // Simpan Object Partner Full biar bisa ambil FID/Address buat chat
   const [matchPartner, setMatchPartner] = useState<FarcasterUser | null>(null);
 
   const { isConnected, address } = useAccount();
@@ -215,9 +194,6 @@ export default function Home() {
             combinedUsers = [...fcUsers];
         }
 
-        // Gabung Data Manual (Opsional)
-        // combinedUsers = [...combinedUsers, ...BASE_USERS];
-
         // 👇 LOGIKA SORTING LOKASI (Prioritas Satu Negara)
         if (myLocation) {
             const myCountry = getBroadLocation(myLocation);
@@ -227,7 +203,7 @@ export default function Home() {
               const matchA = countryA && myCountry && (countryA.includes(myCountry) || myCountry.includes(countryA));
               const matchB = countryB && myCountry && (countryB.includes(myCountry) || myCountry.includes(countryB));
               
-              if (matchA && !matchB) return 1; // A naik ke tumpukan atas (akhir array)
+              if (matchA && !matchB) return 1; 
               if (!matchA && matchB) return -1;
               return 0;
             });
@@ -267,7 +243,7 @@ export default function Home() {
     .filter((p) => p.gender !== myGender)
     .filter((p) => !queueAddr.includes(p.custody_address ?? ""));
 
-  // Real Match Listener (Blockchain)
+  // Real Match Listener
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -279,8 +255,6 @@ export default function Home() {
       logs.forEach((log) => {
         const { user1, user2 } = log.args ?? {};
         if (!user1 || !user2) return;
-        // Kita butuh object user lengkap untuk tombol chat, tapi event cuma kasih address.
-        // Solusi sementara: Cari di profiles yang ada di memori
         if (user1.toLowerCase() === myAddr || user2.toLowerCase() === myAddr) {
           const partnerAddr = user1.toLowerCase() === myAddr ? user2 : user1;
           const foundProfile = profiles.find(p => p.custody_address?.toLowerCase() === partnerAddr.toLowerCase());
@@ -288,13 +262,12 @@ export default function Home() {
           if (foundProfile) {
             setMatchPartner(foundProfile);
           } else {
-            // Fallback object jika profile tidak ada di stack saat ini
             setMatchPartner({
                fid: 0, 
                username: "Unknown", 
                display_name: "Match!", 
                custody_address: partnerAddr, 
-               gender: "male", // dummy
+               gender: "male",
                type: "base"
             });
           }
@@ -303,23 +276,33 @@ export default function Home() {
     },
   });
 
-  const handleSwipe = (dir: string, profile: FarcasterUser) => {
+  const handleSwipe = useCallback((dir: string, profile: FarcasterUser) => {
     const liked = dir === "right";
     
-    // 👇 LOGIKA SIMULASI MATCH (30% Chance)
+    // 👇 LOGIKA SMART MATCH + DELAY
     if (liked) {
-       const isSimulatedMatch = Math.random() < 0.3;
-       if (isSimulatedMatch) {
+       // Cek apakah lokasi MATCH (Satu Negara/Wilayah)
+       const myCountry = getBroadLocation(myLocation);
+       const userCountry = getBroadLocation(profile.location);
+       
+       const isLocationMatch = myCountry && userCountry && (myCountry.includes(userCountry) || userCountry.includes(myCountry));
+       
+       // Rules Baru:
+       // 1. Lokasi SAMA = 60% peluang Match (Masuk akal, tapi gak selalu match)
+       // 2. Lokasi BEDA = 5% peluang Match (Sangat jarang)
+       const matchChance = isLocationMatch ? 0.6 : 0.05;
+       
+       if (Math.random() < matchChance) {
           setTimeout(() => {
-             setMatchPartner(profile); // Pass full profile obj
-          }, 500);
+             setMatchPartner(profile);
+          }, 2000); // Delay 2 Detik
        }
     }
 
     setQueueAddr((prev) => [...prev, profile.custody_address ?? ""]);
     setQueueLikes((prev) => [...prev, liked]);
     setProfiles((current) => current.filter((p) => p.custody_address !== profile.custody_address));
-  };
+  }, [myLocation]); // Wajib ada dependency myLocation biar logikanya jalan
 
   const handleSaveAction = () => {
     if (!isConnected) {
