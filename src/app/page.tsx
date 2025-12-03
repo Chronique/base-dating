@@ -13,69 +13,93 @@ import {
   useBalance,
 } from "wagmi";
 import { base } from "wagmi/chains";
+import { Wallet, MessageCircle } from "lucide-react"; // Icon tambahan
 import SwipeCard, { Profile as SwipeProfile } from "../components/SwipeCard";
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
-// Update Tipe Data (Wajib sama dengan SwipeCard)
+// Tipe data user
 type FarcasterUser = SwipeProfile & {
   fid: number;
   display_name?: string | null;
   bio?: string | null;
   gender: "male" | "female";
   type: "farcaster" | "base";
-  location?: string | null; // ✅ Support Location
+  location?: string | null;
 };
 
-// DATA MANUAL (Sekarang pakai Lokasi)
+// DATA MANUAL (Untuk demo/fallback)
 const BASE_USERS: FarcasterUser[] = [
   {
-    fid: -1,
+    fid: 18, // FID Asli Jesse
     username: "jesse.base.eth",
     display_name: "Jesse Pollak",
-    pfp_url: "https://img.notionusercontent.com/s/prod-files-secure%2F504c88ba-448e-4792-b30c-64f45265d547%2F608c6e67-5f7a-4276-b8f3-9cc9f0e4b15e%2Fjesse.jpg?id=081f9518-3585-4b24-862a-4438135d3f28&table=block&spaceId=504c88ba-448e-4792-b30c-64f45265d547&width=1420&userId=58d91315-9a2f-4225-83b0-c0dfc0281736&cache=v2", 
-    custody_address: "0x8C4E43d88A42407705874B11d8B3eeF88651C8C8",
+    pfp_url: "https://i.imgur.com/brcnijg.png", 
+    custody_address: "0x8C4E43d88A42407705874B11d8B3eeF88651C8C8", // Address Dummy untuk demo
     bio: "Creator of Base. Let's build onchain.",
     gender: "male",
     type: "base",
     location: "San Francisco, US 🇺🇸"
   },
-  {
-    fid: -2,
-    username: "vitalik.eth",
-    display_name: "Vitalik Buterin",
-    pfp_url: "https://github.com/vbuterin.png",
-    custody_address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
-    bio: "Ethereum Co-founder.",
-    gender: "male",
-    type: "base",
-    location: "Global 🌍"
-  },
-  {
-    fid: -3,
-    username: "linda.base.eth",
-    display_name: "Linda",
-    pfp_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop",
-    custody_address: "0x1234567890123456789012345678901234567890",
-    bio: "Loves crypto and coffee ☕️",
-    gender: "female",
-    type: "base",
-    location: "New York, US 🇺🇸"
-  },
 ];
 
-function MatchModal({ partner, onClose }: { partner: string; onClose: () => void }) {
-  const chatLink = `https://xmttp.chat/dm/${partner}`;
+// Helper: Ambil "Negara/Wilayah" dari string lokasi
+const getBroadLocation = (loc?: string | null) => {
+  if (!loc) return "";
+  const parts = loc.split(",");
+  return parts[parts.length - 1].trim().toLowerCase();
+};
+
+// Helper: Cek apakah user sedang membuka di Warpcast
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const isWarpcastClient = (context: any) => {
+  return context?.client?.clientFid === 9152;
+};
+
+// KOMPONEN MODAL MATCH (Updated)
+function MatchModal({ 
+  partner, 
+  isWarpcast, 
+  onClose 
+}: { 
+  partner: FarcasterUser; 
+  isWarpcast: boolean; 
+  onClose: () => void 
+}) {
+  // 👇 LOGIKA SMART CHAT LINK
+  // Kalau di Warpcast -> Buka Direct Cast (DM) Warpcast
+  // Kalau di Base App -> Buka XMTP
+  const chatLink = isWarpcast 
+    ? `https://warpcast.com/~/inbox/create/${partner.fid}`
+    : `https://xmttp.chat/dm/${partner.custody_address}`;
+
+  const buttonText = isWarpcast ? "Chat on Warpcast" : "Chat on XMTP";
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in zoom-in p-4 touch-auto">
-      <div className="bg-card border border-border p-6 rounded-3xl text-center max-w-sm w-full shadow-2xl relative overflow-hidden">
-        <div className="text-6xl mb-4 animate-bounce">💖</div>
-        <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600 mb-2">IT'S A MATCH!</h2>
-        <p className="text-muted-foreground mb-6 text-sm">
-          You matched with <span className="font-mono bg-secondary px-1 rounded text-foreground">{partner.slice(0, 6)}...</span>
+      {/* 👇 FIX WARNA SOLID (Gak Transparan Lagi) */}
+      <div className="bg-white dark:bg-neutral-900 border-2 border-primary/20 p-6 rounded-3xl text-center max-w-sm w-full shadow-2xl relative overflow-hidden">
+        
+        {/* Glow Effect */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-pink-500/20 blur-3xl rounded-full pointer-events-none"></div>
+
+        <div className="text-6xl mb-4 animate-bounce relative z-10">💖</div>
+        
+        <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600 mb-2 relative z-10">
+          IT'S A MATCH!
+        </h2>
+        
+        <p className="text-muted-foreground mb-6 text-sm relative z-10">
+          You matched with <span className="font-bold text-foreground">{partner.display_name || partner.username}</span>!
         </p>
-        <div className="flex flex-col gap-3">
-          <a href={chatLink} target="_blank" rel="noreferrer" className="bg-primary text-primary-foreground hover:bg-primary/90 py-3 px-6 rounded-xl font-bold shadow-lg transition-colors">
-            💬 Chat on XMTP
+        
+        <div className="flex flex-col gap-3 relative z-10">
+          <a 
+            href={chatLink} 
+            target="_blank" 
+            rel="noreferrer" 
+            className="bg-primary text-primary-foreground hover:bg-primary/90 py-3 px-6 rounded-xl font-bold shadow-lg transition-colors transform active:scale-95 flex items-center justify-center gap-2"
+          >
+            <MessageCircle size={20} /> {buttonText}
           </a>
           <button onClick={onClose} className="bg-secondary text-secondary-foreground hover:bg-secondary/80 py-3 px-6 rounded-xl font-bold transition-colors">
             Keep Swiping
@@ -92,6 +116,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [context, setContext] = useState<any>(undefined);
+  const [myLocation, setMyLocation] = useState<string | null>(null);
 
   const [myGender, setMyGender] = useState<"male" | "female" | null>(null);
   const [introStep, setIntroStep] = useState<1 | 2>(1);
@@ -99,7 +124,8 @@ export default function Home() {
   const [queueAddr, setQueueAddr] = useState<string[]>([]);
   const [queueLikes, setQueueLikes] = useState<boolean[]>([]);
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
-  const [matchPartner, setMatchPartner] = useState<string | null>(null);
+  // Simpan Object Partner Full biar bisa ambil FID/Address buat chat
+  const [matchPartner, setMatchPartner] = useState<FarcasterUser | null>(null);
 
   const { isConnected, address } = useAccount();
   const { connectors, connect } = useConnect();
@@ -112,6 +138,7 @@ export default function Home() {
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
+  // 1. INIT & GET MY LOCATION
   useEffect(() => {
     const initFast = async () => {
       setMounted(true);
@@ -134,18 +161,31 @@ export default function Home() {
         const ctx = await sdk.context;
         setContext(ctx);
         sdk.actions.ready();
+
+        if (ctx?.user?.fid) {
+           try {
+             const myResp = await fetch(
+               `https://api.neynar.com/v2/farcaster/user/bulk?fids=${ctx.user.fid}`, 
+               { headers: { accept: "application/json", api_key: process.env.NEXT_PUBLIC_NEYNAR_API_KEY || "NEYNAR_API_DOCS" } }
+             );
+             const myData = await myResp.json();
+             const myLoc = myData?.users?.[0]?.profile?.location?.description;
+             if (myLoc) setMyLocation(myLoc);
+           } catch (err) { console.error(err); }
+        }
       } catch (err) { console.log("Browser Mode"); }
     };
     initFast();
   }, []);
 
+  // 2. FETCH USERS + SORTING LOCATION
   useEffect(() => {
     const fetchUsersBg = async () => {
       if (!mounted) return;
       setIsLoadingUsers(true);
       try {
-        const randomStart = Math.floor(Math.random() * 10000) + 1;
-        const randomFids = Array.from({ length: 25 }, (_, i) => randomStart + i).join(",");
+        const randomStart = Math.floor(Math.random() * 50000) + 1;
+        const randomFids = Array.from({ length: 50 }, (_, i) => randomStart + i).join(",");
         
         const resp = await fetch(
           `https://api.neynar.com/v2/farcaster/user/bulk?fids=${randomFids}`,
@@ -167,7 +207,7 @@ export default function Home() {
                 custody_address: typeof ethAddr === "string" ? ethAddr : "",
                 gender: Math.random() < 0.5 ? "female" : "male",
                 type: "farcaster",
-                location: u.profile?.location?.description || null, // ✅ Ambil Lokasi dari Farcaster
+                location: u.profile?.location?.description || null,
               } as FarcasterUser;
             })
             .filter((u: FarcasterUser) => !!u.pfp_url && !!u.custody_address && u.custody_address?.startsWith("0x"));
@@ -175,21 +215,37 @@ export default function Home() {
             combinedUsers = [...fcUsers];
         }
 
-        // Gabungkan dengan User Base Manual
-        combinedUsers = [...combinedUsers, ...BASE_USERS];
+        // Gabung Data Manual (Opsional)
+        // combinedUsers = [...combinedUsers, ...BASE_USERS];
 
-        // Acak
-        for (let i = combinedUsers.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [combinedUsers[i], combinedUsers[j]] = [combinedUsers[j], combinedUsers[i]];
+        // 👇 LOGIKA SORTING LOKASI (Prioritas Satu Negara)
+        if (myLocation) {
+            const myCountry = getBroadLocation(myLocation);
+            combinedUsers.sort((a, b) => {
+              const countryA = getBroadLocation(a.location);
+              const countryB = getBroadLocation(b.location);
+              const matchA = countryA && myCountry && (countryA.includes(myCountry) || myCountry.includes(countryA));
+              const matchB = countryB && myCountry && (countryB.includes(myCountry) || myCountry.includes(countryB));
+              
+              if (matchA && !matchB) return 1; // A naik ke tumpukan atas (akhir array)
+              if (!matchA && matchB) return -1;
+              return 0;
+            });
+        } else {
+            // Shuffle Biasa
+            for (let i = combinedUsers.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [combinedUsers[i], combinedUsers[j]] = [combinedUsers[j], combinedUsers[i]];
+            }
         }
 
         setProfiles(combinedUsers);
       } catch (e) { console.error(e); } finally { setIsLoadingUsers(false); }
     };
     if (mounted) fetchUsersBg();
-  }, [mounted]);
+  }, [mounted, myLocation]);
 
+  // ... (Auto Save & Connect sama)
   useEffect(() => {
     if (isStorageLoaded && typeof window !== "undefined") {
       const data = { addrs: queueAddr, likes: queueLikes };
@@ -211,6 +267,7 @@ export default function Home() {
     .filter((p) => p.gender !== myGender)
     .filter((p) => !queueAddr.includes(p.custody_address ?? ""));
 
+  // Real Match Listener (Blockchain)
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -222,8 +279,25 @@ export default function Home() {
       logs.forEach((log) => {
         const { user1, user2 } = log.args ?? {};
         if (!user1 || !user2) return;
+        // Kita butuh object user lengkap untuk tombol chat, tapi event cuma kasih address.
+        // Solusi sementara: Cari di profiles yang ada di memori
         if (user1.toLowerCase() === myAddr || user2.toLowerCase() === myAddr) {
-          setMatchPartner(user1.toLowerCase() === myAddr ? user2 : user1);
+          const partnerAddr = user1.toLowerCase() === myAddr ? user2 : user1;
+          const foundProfile = profiles.find(p => p.custody_address?.toLowerCase() === partnerAddr.toLowerCase());
+          
+          if (foundProfile) {
+            setMatchPartner(foundProfile);
+          } else {
+            // Fallback object jika profile tidak ada di stack saat ini
+            setMatchPartner({
+               fid: 0, 
+               username: "Unknown", 
+               display_name: "Match!", 
+               custody_address: partnerAddr, 
+               gender: "male", // dummy
+               type: "base"
+            });
+          }
         }
       });
     },
@@ -231,6 +305,17 @@ export default function Home() {
 
   const handleSwipe = (dir: string, profile: FarcasterUser) => {
     const liked = dir === "right";
+    
+    // 👇 LOGIKA SIMULASI MATCH (30% Chance)
+    if (liked) {
+       const isSimulatedMatch = Math.random() < 0.3;
+       if (isSimulatedMatch) {
+          setTimeout(() => {
+             setMatchPartner(profile); // Pass full profile obj
+          }, 500);
+       }
+    }
+
     setQueueAddr((prev) => [...prev, profile.custody_address ?? ""]);
     setQueueLikes((prev) => [...prev, liked]);
     setProfiles((current) => current.filter((p) => p.custody_address !== profile.custody_address));
@@ -244,6 +329,8 @@ export default function Home() {
       else alert("No wallet found!");
       return;
     }
+    if (queueAddr.length === 0) { alert("Swipe first!"); return; }
+    
     writeContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       abi: DATING_ABI,
@@ -279,8 +366,8 @@ export default function Home() {
           <h1 className="text-3xl font-black text-primary mb-6">Welcome to<br />Base Dating</h1>
           <div className="bg-card border border-border rounded-2xl p-6 w-full shadow-sm mb-8 text-left space-y-4">
              <div className="flex gap-3"><span className="text-xl">🔥</span><p className="text-sm text-muted-foreground">Swipe Profiles (Left=❌, Right=💚)</p></div>
-             <div className="flex gap-3"><span className="text-xl">⛽</span><p className="text-sm text-muted-foreground">Save gas by batching swipes</p></div>
-             <div className="flex gap-3"><span className="text-xl">💬</span><p className="text-sm text-muted-foreground">Chat via XMTP if matched</p></div>
+             <div className="flex gap-3"><span className="text-xl">📍</span><p className="text-sm text-muted-foreground">Smart Matching by Location</p></div>
+             <div className="flex gap-3"><span className="text-xl">💬</span><p className="text-sm text-muted-foreground">Chat via Warpcast / XMTP</p></div>
           </div>
           <button onClick={() => setIntroStep(2)} className="w-full bg-primary text-primary-foreground p-4 rounded-xl font-bold text-lg shadow-lg">Next</button>
         </div>
@@ -299,7 +386,14 @@ export default function Home() {
 
   return (
     <main className="fixed inset-0 h-[100dvh] w-full bg-background flex flex-col items-center justify-center overflow-hidden touch-none text-foreground">
-      {matchPartner && <MatchModal partner={matchPartner} onClose={() => setMatchPartner(null)} />}
+      {/* Pass isWarpcast ke Modal */}
+      {matchPartner && (
+        <MatchModal 
+          partner={matchPartner} 
+          isWarpcast={isWarpcastClient(context)}
+          onClose={() => setMatchPartner(null)} 
+        />
+      )}
       
       <div className="absolute top-4 left-4 z-50"><div className="bg-card/80 backdrop-blur-md border border-border text-xs px-3 py-1 rounded-full shadow-md">{isConnected ? `💰 ${balance ? Number(balance.formatted).toFixed(4) : "..."} ETH` : "Connecting..."}</div></div>
       <div className="absolute top-4 right-4 z-50"><div className={`px-3 py-1 rounded-full shadow text-sm font-mono border ${isPending ? "bg-orange-100 border-orange-300 text-orange-600" : "bg-card/80 border-border"}`}>{isPending ? "Confirming..." : `💾 ${queueAddr.length}/50`}</div></div>
@@ -322,7 +416,7 @@ export default function Home() {
       </div>
 
       <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
-        <button onClick={handleSaveAction} disabled={isPending || (isConnected && queueAddr.length === 0)} className={`w-full max-w-xs py-4 rounded-full font-bold shadow-2xl transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${queueAddr.length >= 50 ? "bg-destructive text-destructive-foreground animate-bounce" : (isConnected && queueAddr.length === 0 ? "bg-muted text-muted-foreground cursor-default" : "bg-primary text-primary-foreground")}`}>{isPending ? "⏳ Processing..." : (!isConnected ? "🔌 Connect Wallet" : (queueAddr.length === 0 ? "Swipe to Start" : `Save Progress (${queueAddr.length})`))}</button>
+        <button onClick={handleSaveAction} disabled={isPending || (isConnected && queueAddr.length === 0)} className={`w-full max-w-xs py-4 rounded-full font-bold shadow-2xl transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${queueAddr.length >= 50 ? "bg-destructive text-destructive-foreground animate-bounce" : (isConnected && queueAddr.length === 0 ? "bg-muted text-muted-foreground cursor-default" : "bg-primary text-primary-foreground")}`}>{isPending ? "⏳ Processing..." : (!isConnected ? <span className="flex items-center gap-2"><Wallet className="w-5 h-5" /> Connect Wallet</span> : (queueAddr.length === 0 ? "Swipe to Start" : `Save Progress (${queueAddr.length})`))}</button>
       </div>
     </main>
   );
