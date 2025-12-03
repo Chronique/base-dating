@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import TinderCard from "react-tinder-card";
 import Image from "next/image";
 import { useName, useAvatar } from "@coinbase/onchainkit/identity";
 import { base } from "wagmi/chains";
+import { User } from "lucide-react"; // Icon fallback jika gambar error
 
 export type Profile = {
   fid: number;
@@ -13,8 +14,7 @@ export type Profile = {
   bio?: string | null;
   pfp_url?: string | null;
   custody_address?: string | null;
-  // 👇 Tambah field lokasi
-  location?: string | null; 
+  location?: string | null; // ✅ Field Lokasi
   gender?: "male" | "female";
   type?: "farcaster" | "base";
 };
@@ -26,27 +26,31 @@ export function SwipeCard({
   profile: Profile;
   onSwipe: (dir: string) => void;
 }) {
+  const [imgError, setImgError] = useState(false);
+
   const address = profile.custody_address
     ? (profile.custody_address as `0x${string}`)
     : undefined;
 
-  // 1. Ambil Basename
+  // 1. Cek apakah punya Basename (.base.eth)
   const { data: basename } = useName({
     address,
     chain: base,
   });
 
-  // 2. Ambil Avatar
+  // 2. Cek apakah punya Avatar Onchain
   const { data: onchainAvatar } = useAvatar({
-    ensName: basename ?? "", 
+    ensName: basename ?? "",
     chain: base,
   });
 
+  // Prioritas Nama: Basename -> Display Name -> Username
   const displayName = useMemo(
     () => basename || profile.display_name || profile.username || "Unknown",
     [basename, profile.display_name, profile.username]
   );
 
+  // Prioritas Gambar: Avatar Onchain -> PFP Farcaster -> Kosong
   const displayImage = onchainAvatar || profile.pfp_url || "";
 
   const onCardLeftScreen = (direction: string) => {
@@ -63,9 +67,10 @@ export function SwipeCard({
         swipeThreshold={100}
       >
         <div className="relative w-64 h-80 bg-card rounded-3xl shadow-xl overflow-hidden border border-border select-none cursor-grab active:cursor-grabbing">
-          {/* IMAGE */}
-          <div className="absolute inset-0 z-0 bg-secondary">
-            {displayImage ? (
+          
+          {/* IMAGE AREA */}
+          <div className="absolute inset-0 z-0 bg-muted flex items-center justify-center">
+            {!imgError && displayImage ? (
               <Image
                 src={displayImage}
                 alt={displayName}
@@ -73,40 +78,50 @@ export function SwipeCard({
                 className="object-cover pointer-events-none"
                 sizes="(max-width: 768px) 100vw, 300px"
                 priority={true}
-                unoptimized={true}
+                onError={() => setImgError(true)}
+                unoptimized={true} // Biarkan true agar support gambar dari berbagai sumber
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white">
-                <span className="text-4xl">👤</span>
+              // Fallback: Icon User
+              <div className="flex flex-col items-center text-muted-foreground opacity-50">
+                <User size={80} strokeWidth={1} />
               </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/10" />
+            
+            {/* Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
           </div>
 
-          {/* BADGE TIPE USER */}
+          {/* BADGE BASENAME (Glow Effect) */}
           <div className="absolute top-4 left-4 flex gap-2 z-10">
-            {basename && (
+            {basename ? (
               <div className="px-3 py-1 bg-blue-600/90 backdrop-blur-md rounded-full text-[10px] text-white font-bold border border-blue-400/30 shadow-lg animate-pulse">
                 🔵 BASENAME
+              </div>
+            ) : (
+              <div className="px-3 py-1 bg-black/40 backdrop-blur-md rounded-full text-[10px] text-white font-bold border border-white/20">
+                {profile.type === "base" ? "🛡️ BASE" : "🟣 CAST"}
               </div>
             )}
           </div>
 
           {/* INFO USER */}
           <div className="absolute bottom-0 left-0 w-full p-5 text-white z-10">
-            <div className="flex flex-col gap-1 mb-1">
+            <div className="flex flex-col gap-1 mb-2">
+              {/* Nama */}
               <h2 className="text-2xl font-black truncate max-w-[220px] drop-shadow-md tracking-tight">
                 {displayName}
               </h2>
-              {/* 👇 Tampilkan Lokasi atau Address */}
-              <div className="flex items-center gap-1 opacity-80">
+              
+              {/* Lokasi / Address */}
+              <div className="flex items-center gap-1 opacity-90">
                 {profile.location ? (
-                   <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-medium">
+                   <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-medium backdrop-blur-sm">
                      📍 {profile.location}
                    </span>
                 ) : (
-                  !basename && address && (
-                    <span className="text-[10px] font-mono opacity-60 bg-black/20 w-fit px-1 rounded">
+                  address && (
+                    <span className="text-[10px] font-mono opacity-70 bg-black/30 px-1.5 py-0.5 rounded">
                       {address.slice(0, 6)}...{address.slice(-4)}
                     </span>
                   )
@@ -114,10 +129,12 @@ export function SwipeCard({
               </div>
             </div>
             
-            <p className="text-sm text-gray-200 line-clamp-2 leading-relaxed opacity-90 font-medium">
+            {/* Bio */}
+            <p className="text-xs text-gray-200 line-clamp-2 leading-relaxed opacity-90 font-medium">
               {profile.bio || "No bio available ✨"}
             </p>
           </div>
+
         </div>
       </TinderCard>
     </div>
