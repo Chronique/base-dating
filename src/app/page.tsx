@@ -26,20 +26,20 @@ type FarcasterUser = SwipeProfile & {
   location?: string | null;
 };
 
-// Helper: Ambil "Negara/Wilayah" dari string lokasi
+// Helper: Get "Country/Region" from location string
 const getBroadLocation = (loc?: string | null) => {
   if (!loc) return "";
   const parts = loc.split(",");
   return parts[parts.length - 1].trim().toLowerCase();
 };
 
-// Helper: Cek apakah user sedang membuka di Warpcast
+// Helper: Check if the user is opening in Warpcast
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const isWarpcastClient = (context: any) => {
   return context?.client?.clientFid === 9152;
 };
 
-// KOMPONEN MODAL MATCH
+// MATCH MODAL COMPONENT
 function MatchModal({ 
   partner, 
   isWarpcast, 
@@ -157,7 +157,7 @@ export default function Home() {
     initFast();
   }, []);
 
-  // 2. FETCH USERS + SORTING LOCATION
+  // 2. FETCH USERS + LOCATION SORTING
   useEffect(() => {
     const fetchUsersBg = async () => {
       if (!mounted) return;
@@ -194,7 +194,7 @@ export default function Home() {
             combinedUsers = [...fcUsers];
         }
 
-        // 👇 LOGIKA SORTING LOKASI (Prioritas Satu Negara)
+        // 👇 LOCATION SORTING LOGIC (Same Country Priority)
         if (myLocation) {
             const myCountry = getBroadLocation(myLocation);
             combinedUsers.sort((a, b) => {
@@ -208,7 +208,7 @@ export default function Home() {
               return 0;
             });
         } else {
-            // Shuffle Biasa
+            // Regular Shuffle
             for (let i = combinedUsers.length - 1; i > 0; i--) {
               const j = Math.floor(Math.random() * (i + 1));
               [combinedUsers[i], combinedUsers[j]] = [combinedUsers[j], combinedUsers[i]];
@@ -221,7 +221,7 @@ export default function Home() {
     if (mounted) fetchUsersBg();
   }, [mounted, myLocation]);
 
-  // ... (Auto Save & Connect sama)
+  // ... (Auto Save & Connect are the same)
   useEffect(() => {
     if (isStorageLoaded && typeof window !== "undefined") {
       const data = { addrs: queueAddr, likes: queueLikes };
@@ -279,30 +279,30 @@ export default function Home() {
   const handleSwipe = useCallback((dir: string, profile: FarcasterUser) => {
     const liked = dir === "right";
     
-    // 👇 LOGIKA SMART MATCH + DELAY
+    // 👇 SMART MATCH LOGIC + DELAY
     if (liked) {
-       // Cek apakah lokasi MATCH (Satu Negara/Wilayah)
+       // Check if location MATCH (Same Country/Region)
        const myCountry = getBroadLocation(myLocation);
        const userCountry = getBroadLocation(profile.location);
        
        const isLocationMatch = myCountry && userCountry && (myCountry.includes(userCountry) || userCountry.includes(myCountry));
        
-       // Rules Baru:
-       // 1. Lokasi SAMA = 60% peluang Match (Masuk akal, tapi gak selalu match)
-       // 2. Lokasi BEDA = 5% peluang Match (Sangat jarang)
+       // New Rules:
+       // 1. SAME Location = 60% chance of Match (Makes sense, but not always a match)
+       // 2. DIFFERENT Location = 5% chance of Match (Very rare)
        const matchChance = isLocationMatch ? 0.6 : 0.05;
        
        if (Math.random() < matchChance) {
           setTimeout(() => {
              setMatchPartner(profile);
-          }, 2000); // Delay 2 Detik
+          }, 2000); // 2 Second Delay
        }
     }
 
     setQueueAddr((prev) => [...prev, profile.custody_address ?? ""]);
     setQueueLikes((prev) => [...prev, liked]);
     setProfiles((current) => current.filter((p) => p.custody_address !== profile.custody_address));
-  }, [myLocation]); // Wajib ada dependency myLocation biar logikanya jalan
+  }, [myLocation]); // myLocation dependency is required for the logic to work
 
   const handleSaveAction = () => {
     if (!isConnected) {
@@ -369,7 +369,7 @@ export default function Home() {
 
   return (
     <main className="fixed inset-0 h-[100dvh] w-full bg-background flex flex-col items-center justify-center overflow-hidden touch-none text-foreground">
-      {/* Pass isWarpcast ke Modal */}
+      {/* Pass isWarpcast to Modal */}
       {matchPartner && (
         <MatchModal 
           partner={matchPartner} 
@@ -379,7 +379,7 @@ export default function Home() {
       )}
       
       <div className="absolute top-4 left-4 z-50"><div className="bg-card/80 backdrop-blur-md border border-border text-xs px-3 py-1 rounded-full shadow-md">{isConnected ? `💰 ${balance ? Number(balance.formatted).toFixed(4) : "..."} ETH` : "Connecting..."}</div></div>
-      <div className="absolute top-4 right-4 z-50"><div className={`px-3 py-1 rounded-full shadow text-sm font-mono border ${isPending ? "bg-orange-100 border-orange-300 text-orange-600" : "bg-card/80 border-border"}`}>{isPending ? "Confirming..." : `💾 ${queueAddr.length}/50`}</div></div>
+      <div className="absolute top-4 right-4 z-50"><div className={`px-3 py-1 rounded-full shadow text-sm font-mono border ${isPending ? "bg-orange-100 border-orange-300 text-orange-600" : "bg-card/80 border-border"}`}>{isPending ? "⏳ Processing..." : `💾 ${queueAddr.length}/50`}</div></div>
 
       <div className="relative w-full h-full flex items-center justify-center z-10 pointer-events-none">
         <div className="relative w-64 h-80 pointer-events-auto">
