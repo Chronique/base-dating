@@ -14,8 +14,8 @@
     "splashImageUrl": "https://base-dating.vercel.app/icon.png",
     "splashBackgroundColor": "#ffffff",
     "webhookUrl": "https://base-dating.vercel.app/api/webhook",
-    "description": "The first Web3 dating app on Base. Swipe, Match, and Chat with real Farcaster users.",
-    "ogTitle": "Base Dating - Find Your Match On-Chain",
+    "description": "The first Web3 dating app on Base. Swipe, Match, and Chat.",
+    "ogTitle": "Find Your Match on Base Dating",
     "ogDescription": "Swipe, match, and chat with real Farcaster users. Secure, verified, and fun!",
     
     "primaryCategory": "social",
