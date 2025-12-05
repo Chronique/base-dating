@@ -221,7 +221,7 @@ export default function Home() {
     if (mounted) fetchUsersBg();
   }, [mounted, myLocation]);
 
-  // ... (Auto Save & Connect are the same)
+  // Auto Save & Connect Logic
   useEffect(() => {
     if (isStorageLoaded && typeof window !== "undefined") {
       const data = { addrs: queueAddr, likes: queueLikes };
@@ -306,6 +306,7 @@ export default function Home() {
 
   const handleSaveAction = () => {
     if (!isConnected) {
+      // Find injected connector (e.g., Metamask, WalletConnect)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
       if (injectedConnector) connect({ connector: injectedConnector });
