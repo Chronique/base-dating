@@ -230,12 +230,12 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 👇 NEW/UPDATED LOGIC: Prioritize Farcaster Mini App Connector for auto-connect
+  // 👇 AUTO-CONNECT LOGIC: Prioritize Farcaster Mini App Connector
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
       hasAttemptedAutoConnect.current = true;
       
-      // 1. Prioritize Farcaster Mini App Connector (if available in the environment)
+      // 1. Prioritize Farcaster Mini App Connector (must be included in WagmiProvider)
       const farcasterConnector = connectors.find((c) => c.name === "Farcaster Mini App");
       
       if (farcasterConnector) {
@@ -247,7 +247,7 @@ export default function Home() {
           if (injectedConnector) connect({ connector: injectedConnector });
       }
     }
-  }, [mounted, context, isConnected, connectors, connect]); // This logic uses the 'connectors' from useConnect
+  }, [mounted, context, isConnected, connectors, connect]); 
 
   const filteredProfiles = profiles
     .filter((p) => p.gender !== myGender)
@@ -323,6 +323,7 @@ export default function Home() {
           connect({ connector: farcasterConnector });
       } else {
           // 2. Fallback to standard injected wallet logic
+          // Find injected connector (e.g., Metamask, WalletConnect)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
           if (injectedConnector) connect({ connector: injectedConnector });
