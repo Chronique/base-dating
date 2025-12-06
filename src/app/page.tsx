@@ -221,7 +221,7 @@ export default function Home() {
     if (mounted) fetchUsersBg();
   }, [mounted, myLocation]);
 
-  // Auto Save & Connect Logic
+  // ... (Auto Save & Connect logic)
   useEffect(() => {
     if (isStorageLoaded && typeof window !== "undefined") {
       const data = { addrs: queueAddr, likes: queueLikes };
@@ -230,14 +230,24 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
+  // 👇 NEW/UPDATED LOGIC: Prioritize Farcaster Mini App Connector for auto-connect
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
       hasAttemptedAutoConnect.current = true;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
-      if (injectedConnector) connect({ connector: injectedConnector });
+      
+      // 1. Prioritize Farcaster Mini App Connector (if available in the environment)
+      const farcasterConnector = connectors.find((c) => c.name === "Farcaster Mini App");
+      
+      if (farcasterConnector) {
+          connect({ connector: farcasterConnector });
+      } else {
+          // 2. Fallback to standard injected wallet logic
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
+          if (injectedConnector) connect({ connector: injectedConnector });
+      }
     }
-  }, [mounted, context, isConnected, connectors, connect]);
+  }, [mounted, context, isConnected, connectors, connect]); // This logic uses the 'connectors' from useConnect
 
   const filteredProfiles = profiles
     .filter((p) => p.gender !== myGender)
@@ -306,11 +316,18 @@ export default function Home() {
 
   const handleSaveAction = () => {
     if (!isConnected) {
-      // Find injected connector (e.g., Metamask, WalletConnect)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
-      if (injectedConnector) connect({ connector: injectedConnector });
-      else alert("No wallet found!");
+      // 1. Prioritize Farcaster Mini App Connector
+      const farcasterConnector = connectors.find((c) => c.name === "Farcaster Mini App");
+      
+      if (farcasterConnector) {
+          connect({ connector: farcasterConnector });
+      } else {
+          // 2. Fallback to standard injected wallet logic
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
+          if (injectedConnector) connect({ connector: injectedConnector });
+          else alert("No wallet found!");
+      }
       return;
     }
     if (queueAddr.length === 0) { alert("Swipe first!"); return; }
