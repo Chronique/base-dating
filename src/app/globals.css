@@ -1,24 +1,17 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
-
-/* 👇 3 BARIS INI WAJIB ADA DI ATAS */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* 👇 PENTING: Memberitahu browser/webview bahwa app support kedua mode */
-    /* Ini membantu scrollbar dan elemen sistem ikut berubah warna */
-    color-scheme: light dark; 
-
-    /* Mode Terang (Light) */
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Mode Terang (Default) */
+    --background: 0 0% 100%; /* Putih */
+    --foreground: 0 0% 3.9%; /* Hitam Pudar */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 221.2 83.2% 53.3%; /* Biru Base */
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -33,12 +26,11 @@
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
   }
- 
+
   .dark {
-    /* Mode Gelap (Dark) */
-    /* Pastikan background di sini gelap (222.2 ...), bukan 0 0% 100% */
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Mode Gelap (Otomatis aktif jika System/Farcaster Dark Mode) */
+    --background: 222.2 84% 4.9%; /* Hampir Hitam */
+    --foreground: 210 40% 98%; /* Putih */
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
@@ -55,25 +47,15 @@
     --destructive-foreground: 210 40% 98%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
- 
+
 @layer base {
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', sans-serif;
   }
-}
-
-/* Utilities tambahan */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
 }

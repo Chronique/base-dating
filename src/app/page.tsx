@@ -49,11 +49,12 @@ function MatchModal({
   isWarpcast: boolean; 
   onClose: () => void 
 }) {
+  // 👇 UPDATE: Use Converse.xyz for better mobile/Base App support
   const chatLink = isWarpcast 
     ? `https://warpcast.com/~/inbox/create/${partner.fid}`
-    : `https://xmttp.chat/dm/${partner.custody_address}`;
+    : `https://converse.xyz/dm/${partner.custody_address}`;
 
-  const buttonText = isWarpcast ? "Chat on Warpcast" : "Chat on XMTP";
+  const buttonText = isWarpcast ? "Chat on Warpcast" : "Chat on Converse";
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in zoom-in p-4 touch-auto">
