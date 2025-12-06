@@ -8,11 +8,12 @@ import { METADATA } from "../../lib/utils";
 export const config = createConfig({
   chains: [base, optimism],
   transports: {
-    [base.id]: http(),
-    [optimism.id]: http(),
+    
+    [base.id]: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL ?? undefined),
+    [optimism.id]: http(), 
   },
   connectors: [
-    farcasterMiniApp(), 
+    farcasterMiniApp(),
     baseAccount({
       appName: METADATA.name,
       appLogoUrl: METADATA.iconImageUrl,
