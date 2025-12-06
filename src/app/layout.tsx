@@ -1,33 +1,39 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
-
-const appUrl = "https://base-dating.vercel.app"; 
+import { METADATA } from "../lib/utils"; // Import METADATA dari utils
 
 export const metadata: Metadata = {
-  title: "Base Dating App",
-  // Updated English description
-  description: "Find your on-chain match and connect with like-minded individuals on Base.", 
+  // Menggunakan variable dari METADATA
+  title: METADATA.name,
+  description: METADATA.description,
   openGraph: {
-    // Updated English og:title
-    title: "Base Dating - Find Your On-Chain Match", 
-    // Updated English og:description
-    description: "The first dating app on Base. Connect your wallet, swipe, and build web3 connections.",
-    url: appUrl,
-    siteName: "Base Dating",
+    title: "Base Dating - Find Your On-Chain Match",
+    description: METADATA.description,
+    url: METADATA.homeUrl,
+    siteName: METADATA.name,
+    images: [
+      {
+        url: METADATA.bannerImageUrl,
+        width: 1200,
+        height: 630,
+        alt: METADATA.name,
+      },
+    ],
   },
   other: {
+    // Kunci agar Farcaster mengenali ini sebagai App
     "fc:frame": JSON.stringify({
       version: "next",
-      imageUrl: `${appUrl}/opener-image.png`,
+      imageUrl: METADATA.bannerImageUrl,
       button: {
         title: "Start Matching",
         action: {
           type: "launch_frame",
-          name: "Base Dating",
-          url: appUrl,
-          splashImageUrl: `${appUrl}/icon.png`,
-          splashBackgroundColor: "#ffffff",
+          name: METADATA.name,
+          url: METADATA.homeUrl,
+          splashImageUrl: METADATA.iconImageUrl,
+          splashBackgroundColor: METADATA.splashBackgroundColor,
         },
       },
     }),
@@ -40,7 +46,6 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // Note: suppressHydrationWarning is added here
     <html lang="en" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
