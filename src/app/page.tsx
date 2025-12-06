@@ -13,7 +13,7 @@ import {
   useBalance,
 } from "wagmi";
 import { base } from "wagmi/chains";
-import { Wallet, MessageCircle } from "lucide-react"; 
+import { Wallet, MessageCircle, User } from "lucide-react"; // Added User icon
 import SwipeCard, { Profile as SwipeProfile } from "../components/SwipeCard";
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
 
@@ -29,7 +29,6 @@ type FarcasterUser = SwipeProfile & {
 // Helper: Get "Country/Region" from location string
 const getBroadLocation = (loc?: string | null) => {
   if (!loc) return "";
-  // Simple logic: take the last part of the string (usually Country)
   const parts = loc.split(",");
   return parts[parts.length - 1].trim().toLowerCase();
 };
@@ -50,12 +49,28 @@ function MatchModal({
   isWarpcast: boolean; 
   onClose: () => void 
 }) {
-  // Use Converse.xyz for better mobile/Base App support
-  const chatLink = isWarpcast 
-    ? `https://warpcast.com/~/inbox/create/${partner.fid}`
-    : `https://converse.xyz/dm/${partner.custody_address}`;
+  // 👇 LOGIKA BARU: 
+  // Jika Warpcast -> Chat (Direct Message)
+  // Jika Base App/Lainnya -> View Profile (Lebih aman karena chat perlu aktivasi)
+  
+  let chatLink = "";
+  let buttonText = "";
+  let ButtonIcon = MessageCircle;
 
-  const buttonText = isWarpcast ? "Chat on Warpcast" : "Chat on Converse";
+  if (isWarpcast) {
+    chatLink = `https://warpcast.com/~/inbox/create/${partner.fid}`;
+    buttonText = "Chat on Warpcast";
+    ButtonIcon = MessageCircle;
+  } else {
+    // Fallback ke Profil atau BaseScan jika username tidak ada
+    if (partner.username && partner.username !== "Unknown") {
+      chatLink = `https://warpcast.com/${partner.username}`;
+    } else {
+      chatLink = `https://basescan.org/address/${partner.custody_address}`;
+    }
+    buttonText = "View Profile";
+    ButtonIcon = User;
+  }
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in zoom-in p-4 touch-auto">
@@ -81,7 +96,7 @@ function MatchModal({
             rel="noreferrer" 
             className="bg-primary text-primary-foreground hover:bg-primary/90 py-3 px-6 rounded-xl font-bold shadow-lg transition-colors transform active:scale-95 flex items-center justify-center gap-2"
           >
-            <MessageCircle size={20} /> {buttonText}
+            <ButtonIcon size={20} /> {buttonText}
           </a>
           <button onClick={onClose} className="bg-secondary text-secondary-foreground hover:bg-secondary/80 py-3 px-6 rounded-xl font-bold transition-colors">
             Keep Swiping
@@ -101,7 +116,7 @@ export default function Home() {
   
   // Locations & User Stats
   const [myLocation, setMyLocation] = useState<string | null>(null);
-  const [saveCount, setSaveCount] = useState<number>(0); // NEW: Track how many times user saved
+  const [saveCount, setSaveCount] = useState<number>(0); 
 
   const [myGender, setMyGender] = useState<"male" | "female" | null>(null);
   const [introStep, setIntroStep] = useState<1 | 2>(1);
@@ -130,7 +145,7 @@ export default function Home() {
         // Load Queue
         const savedQueue = localStorage.getItem("baseDatingQueue");
         const savedGender = localStorage.getItem("baseDatingGender");
-        const savedCount = localStorage.getItem("baseDatingSaveCount"); // NEW
+        const savedCount = localStorage.getItem("baseDatingSaveCount");
 
         if (savedQueue) {
           try {
@@ -142,7 +157,7 @@ export default function Home() {
           } catch (e) { console.warn(e); }
         }
         if (savedGender === "male" || savedGender === "female") setMyGender(savedGender);
-        if (savedCount) setSaveCount(parseInt(savedCount) || 0); // NEW
+        if (savedCount) setSaveCount(parseInt(savedCount) || 0);
       }
       setIsStorageLoaded(true);
 
@@ -315,7 +330,7 @@ export default function Home() {
     },
   });
 
-  // 👇 UPDATED MATCH LOGIC
+  // 👇 MATCH LOGIC
   const handleSwipe = useCallback((dir: string, profile: FarcasterUser) => {
     const liked = dir === "right";
     
@@ -327,15 +342,11 @@ export default function Home() {
        const isLocationMatch = myCountry && userCountry && (myCountry.includes(userCountry) || userCountry.includes(myCountry));
        
        // 2. Base Chance
-       // - Same Country: 60%
-       // - Diff Country: 5% (Kecil aja)
        let matchChance = isLocationMatch ? 0.6 : 0.05;
 
        // 3. ACTIVE USER BONUS
-       // Jika user sudah pernah save >= 5 kali, tambah peluang 20%
        if (saveCount >= 5) {
           matchChance += 0.2; 
-          // Cap at 90% (Supaya ga selalu 100%)
           if (matchChance > 0.9) matchChance = 0.9;
        }
        
@@ -344,14 +355,14 @@ export default function Home() {
        if (Math.random() < matchChance) {
           setTimeout(() => {
              setMatchPartner(profile);
-          }, 1500); // 1.5 Second Delay
+          }, 1500); 
        }
     }
 
     setQueueAddr((prev) => [...prev, profile.custody_address ?? ""]);
     setQueueLikes((prev) => [...prev, liked]);
     setProfiles((current) => current.filter((p) => p.custody_address !== profile.custody_address));
-  }, [myLocation, saveCount]); // Add saveCount dependency
+  }, [myLocation, saveCount]);
 
   const handleSaveAction = () => {
     if (!isConnected) {
@@ -379,7 +390,6 @@ export default function Home() {
 
   useEffect(() => {
     if (isSuccess) {
-      // ✅ Increment Save Count on Success
       const newCount = saveCount + 1;
       setSaveCount(newCount);
       localStorage.setItem("baseDatingSaveCount", newCount.toString());
@@ -428,7 +438,6 @@ export default function Home() {
 
   return (
     <main className="fixed inset-0 h-[100dvh] w-full bg-background flex flex-col items-center justify-center overflow-hidden touch-none text-foreground">
-      {/* Pass isWarpcast to Modal */}
       {matchPartner && (
         <MatchModal 
           partner={matchPartner} 
