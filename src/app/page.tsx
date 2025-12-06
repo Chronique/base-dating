@@ -29,6 +29,7 @@ type FarcasterUser = SwipeProfile & {
 // Helper: Get "Country/Region" from location string
 const getBroadLocation = (loc?: string | null) => {
   if (!loc) return "";
+  // Simple logic: take the last part of the string (usually Country)
   const parts = loc.split(",");
   return parts[parts.length - 1].trim().toLowerCase();
 };
@@ -49,7 +50,7 @@ function MatchModal({
   isWarpcast: boolean; 
   onClose: () => void 
 }) {
-  // 👇 UPDATE: Use Converse.xyz for better mobile/Base App support
+  // Use Converse.xyz for better mobile/Base App support
   const chatLink = isWarpcast 
     ? `https://warpcast.com/~/inbox/create/${partner.fid}`
     : `https://converse.xyz/dm/${partner.custody_address}`;
@@ -97,7 +98,10 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [context, setContext] = useState<any>(undefined);
+  
+  // Locations & User Stats
   const [myLocation, setMyLocation] = useState<string | null>(null);
+  const [saveCount, setSaveCount] = useState<number>(0); // NEW: Track how many times user saved
 
   const [myGender, setMyGender] = useState<"male" | "female" | null>(null);
   const [introStep, setIntroStep] = useState<1 | 2>(1);
@@ -118,13 +122,16 @@ export default function Home() {
   const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
   const { isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // 1. INIT & GET MY LOCATION
+  // 1. INIT & GET MY LOCATION (PROFILE OR IP)
   useEffect(() => {
     const initFast = async () => {
       setMounted(true);
       if (typeof window !== "undefined") {
+        // Load Queue
         const savedQueue = localStorage.getItem("baseDatingQueue");
         const savedGender = localStorage.getItem("baseDatingGender");
+        const savedCount = localStorage.getItem("baseDatingSaveCount"); // NEW
+
         if (savedQueue) {
           try {
             const parsed = JSON.parse(savedQueue);
@@ -135,13 +142,18 @@ export default function Home() {
           } catch (e) { console.warn(e); }
         }
         if (savedGender === "male" || savedGender === "female") setMyGender(savedGender);
+        if (savedCount) setSaveCount(parseInt(savedCount) || 0); // NEW
       }
       setIsStorageLoaded(true);
+
       try {
         const ctx = await sdk.context;
         setContext(ctx);
         sdk.actions.ready();
 
+        let locationFound = false;
+
+        // A. Try getting location from Farcaster Context/API
         if (ctx?.user?.fid) {
            try {
              const myResp = await fetch(
@@ -150,9 +162,27 @@ export default function Home() {
              );
              const myData = await myResp.json();
              const myLoc = myData?.users?.[0]?.profile?.location?.description;
-             if (myLoc) setMyLocation(myLoc);
-           } catch (err) { console.error(err); }
+             if (myLoc) {
+                setMyLocation(myLoc);
+                locationFound = true;
+             }
+           } catch (err) { console.error("Neynar location fetch error:", err); }
         }
+
+        // B. Fallback: Get Location from IP (if not found in Farcaster)
+        if (!locationFound) {
+            try {
+                const ipResp = await fetch('https://ipapi.co/json/');
+                const ipData = await ipResp.json();
+                if (ipData && ipData.country_name) {
+                    setMyLocation(ipData.country_name); // e.g. "Indonesia"
+                    console.log("Location detected via IP:", ipData.country_name);
+                }
+            } catch (ipErr) {
+                console.error("IP Location fetch error:", ipErr);
+            }
+        }
+
       } catch (err) { console.log("Browser Mode"); }
     };
     initFast();
@@ -222,7 +252,7 @@ export default function Home() {
     if (mounted) fetchUsersBg();
   }, [mounted, myLocation]);
 
-  // ... (Auto Save & Connect logic)
+  // Auto Save & Connect logic
   useEffect(() => {
     if (isStorageLoaded && typeof window !== "undefined") {
       const data = { addrs: queueAddr, likes: queueLikes };
@@ -236,13 +266,11 @@ export default function Home() {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
       hasAttemptedAutoConnect.current = true;
       
-      // 1. Prioritize Farcaster Mini App Connector (must be included in WagmiProvider)
       const farcasterConnector = connectors.find((c) => c.name === "Farcaster Mini App");
       
       if (farcasterConnector) {
           connect({ connector: farcasterConnector });
       } else {
-          // 2. Fallback to standard injected wallet logic
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
           if (injectedConnector) connect({ connector: injectedConnector });
@@ -254,7 +282,7 @@ export default function Home() {
     .filter((p) => p.gender !== myGender)
     .filter((p) => !queueAddr.includes(p.custody_address ?? ""));
 
-  // Real Match Listener
+  // Real Match Listener (From Blockchain)
   useWatchContractEvent({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: DATING_ABI,
@@ -287,44 +315,50 @@ export default function Home() {
     },
   });
 
+  // 👇 UPDATED MATCH LOGIC
   const handleSwipe = useCallback((dir: string, profile: FarcasterUser) => {
     const liked = dir === "right";
     
-    // 👇 SMART MATCH LOGIC + DELAY
     if (liked) {
-       // Check if location MATCH (Same Country/Region)
+       // 1. Check if location MATCH (Same Country/Region)
        const myCountry = getBroadLocation(myLocation);
        const userCountry = getBroadLocation(profile.location);
        
        const isLocationMatch = myCountry && userCountry && (myCountry.includes(userCountry) || userCountry.includes(myCountry));
        
-       // New Rules:
-       // 1. SAME Location = 60% chance of Match (Makes sense, but not always a match)
-       // 2. DIFFERENT Location = 5% chance of Match (Very rare)
-       const matchChance = isLocationMatch ? 0.6 : 0.05;
+       // 2. Base Chance
+       // - Same Country: 60%
+       // - Diff Country: 5% (Kecil aja)
+       let matchChance = isLocationMatch ? 0.6 : 0.05;
+
+       // 3. ACTIVE USER BONUS
+       // Jika user sudah pernah save >= 5 kali, tambah peluang 20%
+       if (saveCount >= 5) {
+          matchChance += 0.2; 
+          // Cap at 90% (Supaya ga selalu 100%)
+          if (matchChance > 0.9) matchChance = 0.9;
+       }
        
+       console.log(`Match Chance: ${matchChance.toFixed(2)} (LocMatch: ${isLocationMatch}, Saves: ${saveCount})`);
+
        if (Math.random() < matchChance) {
           setTimeout(() => {
              setMatchPartner(profile);
-          }, 2000); // 2 Second Delay
+          }, 1500); // 1.5 Second Delay
        }
     }
 
     setQueueAddr((prev) => [...prev, profile.custody_address ?? ""]);
     setQueueLikes((prev) => [...prev, liked]);
     setProfiles((current) => current.filter((p) => p.custody_address !== profile.custody_address));
-  }, [myLocation]); // myLocation dependency is required for the logic to work
+  }, [myLocation, saveCount]); // Add saveCount dependency
 
   const handleSaveAction = () => {
     if (!isConnected) {
-      // 1. Prioritize Farcaster Mini App Connector
       const farcasterConnector = connectors.find((c) => c.name === "Farcaster Mini App");
-      
       if (farcasterConnector) {
           connect({ connector: farcasterConnector });
       } else {
-          // 2. Fallback to standard injected wallet logic
-          // Find injected connector (e.g., Metamask, WalletConnect)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
           if (injectedConnector) connect({ connector: injectedConnector });
@@ -345,10 +379,15 @@ export default function Home() {
 
   useEffect(() => {
     if (isSuccess) {
+      // ✅ Increment Save Count on Success
+      const newCount = saveCount + 1;
+      setSaveCount(newCount);
+      localStorage.setItem("baseDatingSaveCount", newCount.toString());
+
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem("baseDatingQueue");
-      alert("✅ Swipes Saved!");
+      alert(`✅ Swipes Saved! (Total Saves: ${newCount})`);
     }
   }, [isSuccess]);
 
@@ -370,7 +409,7 @@ export default function Home() {
           <div className="bg-card border border-border rounded-2xl p-6 w-full shadow-sm mb-8 text-left space-y-4">
              <div className="flex gap-3"><span className="text-xl">🔥</span><p className="text-sm text-muted-foreground">Swipe Profiles (Left=❌, Right=💚)</p></div>
              <div className="flex gap-3"><span className="text-xl">📍</span><p className="text-sm text-muted-foreground">Smart Matching by Location</p></div>
-             <div className="flex gap-3"><span className="text-xl">💬</span><p className="text-sm text-muted-foreground">Chat via Warpcast / XMTP</p></div>
+             <div className="flex gap-3"><span className="text-xl">💬</span><p className="text-sm text-muted-foreground">Chat via Warpcast / Converse</p></div>
           </div>
           <button onClick={() => setIntroStep(2)} className="w-full bg-primary text-primary-foreground p-4 rounded-xl font-bold text-lg shadow-lg">Next</button>
         </div>
