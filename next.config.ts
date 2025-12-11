@@ -13,11 +13,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // 👇 TAMBAHKAN BAGIAN WEBPACK INI
+  // 👇 Tambahkan konfigurasi ini untuk mengabaikan module React Native
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      // Mengabaikan import React Native Async Storage di lingkungan web
       '@react-native-async-storage/async-storage': false,
     };
     return config;
