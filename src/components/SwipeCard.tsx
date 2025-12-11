@@ -5,7 +5,9 @@ import TinderCard from "react-tinder-card";
 import Image from "next/image";
 import { useName, useAvatar } from "@coinbase/onchainkit/identity";
 import { base } from "wagmi/chains";
-import { User } from "lucide-react"; // Icon fallback jika gambar error
+// 👇 NEW: Import Material UI Icons
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import LocationOnRoundedIcon from '@mui/icons-material/LocationOnRounded';
 
 export type Profile = {
   fid: number;
@@ -14,7 +16,7 @@ export type Profile = {
   bio?: string | null;
   pfp_url?: string | null;
   custody_address?: string | null;
-  location?: string | null; // ✅ Field Lokasi
+  location?: string | null;
   gender?: "male" | "female";
   type?: "farcaster" | "base";
 };
@@ -32,25 +34,25 @@ export function SwipeCard({
     ? (profile.custody_address as `0x${string}`)
     : undefined;
 
-  // 1. Cek apakah punya Basename (.base.eth)
+  // 1. Check for Basename (.base.eth)
   const { data: basename } = useName({
     address,
     chain: base,
   });
 
-  // 2. Cek apakah punya Avatar Onchain
+  // 2. Check for Onchain Avatar
   const { data: onchainAvatar } = useAvatar({
     ensName: basename ?? "",
     chain: base,
   });
 
-  // Prioritas Nama: Basename -> Display Name -> Username
+  // Name Priority: Basename -> Display Name -> Username
   const displayName = useMemo(
     () => basename || profile.display_name || profile.username || "Unknown",
     [basename, profile.display_name, profile.username]
   );
 
-  // Prioritas Gambar: Avatar Onchain -> PFP Farcaster -> Kosong
+  // Image Priority: Onchain Avatar -> Farcaster PFP -> Empty
   const displayImage = onchainAvatar || profile.pfp_url || "";
 
   const onCardLeftScreen = (direction: string) => {
@@ -79,15 +81,15 @@ export function SwipeCard({
                 sizes="(max-width: 768px) 100vw, 300px"
                 priority={true}
                 onError={() => setImgError(true)}
-                unoptimized={true} // Biarkan true agar support gambar dari berbagai sumber
+                unoptimized={true} 
               />
             ) : (
-              // Fallback: Icon User
+              // Fallback: Material UI Person Icon
               <div className="flex flex-col items-center text-muted-foreground opacity-50">
-                <User size={80} strokeWidth={1} />
+                <PersonRoundedIcon sx={{ fontSize: 80 }} />
               </div>
             )}
-            
+           
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
           </div>
@@ -108,16 +110,16 @@ export function SwipeCard({
           {/* INFO USER */}
           <div className="absolute bottom-0 left-0 w-full p-5 text-white z-10">
             <div className="flex flex-col gap-1 mb-2">
-              {/* Nama */}
+              {/* Name */}
               <h2 className="text-2xl font-black truncate max-w-[220px] drop-shadow-md tracking-tight">
                 {displayName}
               </h2>
               
-              {/* Lokasi / Address */}
+              {/* Location / Address */}
               <div className="flex items-center gap-1 opacity-90">
                 {profile.location ? (
-                   <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-medium backdrop-blur-sm">
-                     📍 {profile.location}
+                   <span className="flex items-center gap-1 text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-medium backdrop-blur-sm">
+                     <LocationOnRoundedIcon sx={{ fontSize: 12 }} /> {profile.location}
                    </span>
                 ) : (
                   address && (
@@ -128,7 +130,7 @@ export function SwipeCard({
                 )}
               </div>
             </div>
-            
+           
             {/* Bio */}
             <p className="text-xs text-gray-200 line-clamp-2 leading-relaxed opacity-90 font-medium">
               {profile.bio || "No bio available ✨"}

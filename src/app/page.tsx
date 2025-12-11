@@ -13,9 +13,16 @@ import {
   useBalance,
 } from "wagmi";
 import { base } from "wagmi/chains";
-import { Wallet, MessageCircle, User } from "lucide-react"; // Added User icon
+// Menggunakan icon dari MUI Material Icons
+import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import ChatBubbleRoundedIcon from '@mui/icons-material/ChatBubbleRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+
 import SwipeCard, { Profile as SwipeProfile } from "../components/SwipeCard";
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
+import { METADATA } from "../lib/utils"; 
 
 type FarcasterUser = SwipeProfile & {
   fid: number;
@@ -49,27 +56,23 @@ function MatchModal({
   isWarpcast: boolean; 
   onClose: () => void 
 }) {
-  // 👇 LOGIKA BARU: 
-  // Jika Warpcast -> Chat (Direct Message)
-  // Jika Base App/Lainnya -> View Profile (Lebih aman karena chat perlu aktivasi)
-  
   let chatLink = "";
   let buttonText = "";
-  let ButtonIcon = MessageCircle;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let ButtonIcon: any = ChatBubbleRoundedIcon;
 
   if (isWarpcast) {
     chatLink = `https://warpcast.com/~/inbox/create/${partner.fid}`;
     buttonText = "Chat on Warpcast";
-    ButtonIcon = MessageCircle;
+    ButtonIcon = ChatBubbleRoundedIcon;
   } else {
-    // Fallback ke Profil atau BaseScan jika username tidak ada
     if (partner.username && partner.username !== "Unknown") {
       chatLink = `https://warpcast.com/${partner.username}`;
     } else {
       chatLink = `https://basescan.org/address/${partner.custody_address}`;
     }
     buttonText = "View Profile";
-    ButtonIcon = User;
+    ButtonIcon = PersonRoundedIcon;
   }
 
   return (
@@ -96,7 +99,7 @@ function MatchModal({
             rel="noreferrer" 
             className="bg-primary text-primary-foreground hover:bg-primary/90 py-3 px-6 rounded-xl font-bold shadow-lg transition-colors transform active:scale-95 flex items-center justify-center gap-2"
           >
-            <ButtonIcon size={20} /> {buttonText}
+            <ButtonIcon /> {buttonText}
           </a>
           <button onClick={onClose} className="bg-secondary text-secondary-foreground hover:bg-secondary/80 py-3 px-6 rounded-xl font-bold transition-colors">
             Keep Swiping
@@ -190,7 +193,7 @@ export default function Home() {
                 const ipResp = await fetch('https://ipapi.co/json/');
                 const ipData = await ipResp.json();
                 if (ipData && ipData.country_name) {
-                    setMyLocation(ipData.country_name); // e.g. "Indonesia"
+                    setMyLocation(ipData.country_name); 
                     console.log("Location detected via IP:", ipData.country_name);
                 }
             } catch (ipErr) {
@@ -240,7 +243,7 @@ export default function Home() {
             combinedUsers = [...fcUsers];
         }
 
-        // 👇 LOCATION SORTING LOGIC (Same Country Priority)
+        // 👇 LOCATION SORTING LOGIC
         if (myLocation) {
             const myCountry = getBroadLocation(myLocation);
             combinedUsers.sort((a, b) => {
@@ -276,7 +279,7 @@ export default function Home() {
     }
   }, [queueAddr, queueLikes, myGender, isStorageLoaded]);
 
-  // 👇 AUTO-CONNECT LOGIC: Prioritize Farcaster Mini App Connector
+  // 👇 AUTO-CONNECT LOGIC
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
       hasAttemptedAutoConnect.current = true;
@@ -316,13 +319,15 @@ export default function Home() {
           if (foundProfile) {
             setMatchPartner(foundProfile);
           } else {
+            // 👇 FIX: Menambahkan pfp_url: null agar sesuai tipe FarcasterUser
             setMatchPartner({
                fid: 0, 
                username: "Unknown", 
                display_name: "Match!", 
                custody_address: partnerAddr, 
                gender: "male",
-               type: "base"
+               type: "base",
+               pfp_url: null 
             });
           }
         }
@@ -335,7 +340,7 @@ export default function Home() {
     const liked = dir === "right";
     
     if (liked) {
-       // 1. Check if location MATCH (Same Country/Region)
+       // 1. Check if location MATCH
        const myCountry = getBroadLocation(myLocation);
        const userCountry = getBroadLocation(profile.location);
        
@@ -350,8 +355,6 @@ export default function Home() {
           if (matchChance > 0.9) matchChance = 0.9;
        }
        
-       console.log(`Match Chance: ${matchChance.toFixed(2)} (LocMatch: ${isLocationMatch}, Saves: ${saveCount})`);
-
        if (Math.random() < matchChance) {
           setTimeout(() => {
              setMatchPartner(profile);
@@ -401,6 +404,33 @@ export default function Home() {
     }
   }, [isSuccess]);
 
+  // 👇 3. ACTION HANDLERS (SHARE & ADD APP)
+  const handleShare = useCallback(() => {
+    try {
+      // Compose Cast dengan teks yang sudah diisi
+      sdk.actions.composeCast({
+        text: "I'm finding my on-chain match on Base Dating! 💙\n\nCheck it out:",
+        embeds: [METADATA.homeUrl]
+      });
+    } catch (e) {
+      console.error("Share failed", e);
+      // Fallback jika tidak di dalam Farcaster client
+      if (typeof window !== "undefined") {
+        window.open(`https://warpcast.com/~/compose?text=Find+your+on-chain+match!&embeds[]=${METADATA.homeUrl}`, "_blank");
+      }
+    }
+  }, []);
+
+  const handleAddApp = useCallback(() => {
+    try {
+      // Meminta client untuk menambahkan Mini App ini
+      sdk.actions.addFrame();
+    } catch (e) {
+      console.error("Add app failed", e);
+      alert("Please open this in Warpcast or Base App to add it!");
+    }
+  }, []);
+
   if (!mounted) return null;
 
   if (isWrongNetwork) return (
@@ -446,8 +476,24 @@ export default function Home() {
         />
       )}
       
+      {/* HEADER: Wallet & Actions */}
       <div className="absolute top-4 left-4 z-50"><div className="bg-card/80 backdrop-blur-md border border-border text-xs px-3 py-1 rounded-full shadow-md">{isConnected ? `💰 ${balance ? Number(balance.formatted).toFixed(4) : "..."} ETH` : "Connecting..."}</div></div>
-      <div className="absolute top-4 right-4 z-50"><div className={`px-3 py-1 rounded-full shadow text-sm font-mono border ${isPending ? "bg-orange-100 border-orange-300 text-orange-600" : "bg-card/80 border-border"}`}>{isPending ? "⏳ Processing..." : `💾 ${queueAddr.length}/50`}</div></div>
+      
+      {/* 👇 TOP RIGHT: Action Buttons (Add, Share) & Queue Counter */}
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        {/* ADD APP BUTTON */}
+        <button onClick={handleAddApp} className="bg-card/80 backdrop-blur-md border border-border p-2 rounded-full shadow-md text-foreground hover:bg-primary/10 transition-colors" title="Add Mini App">
+          <AddRoundedIcon />
+        </button>
+        {/* SHARE BUTTON */}
+        <button onClick={handleShare} className="bg-card/80 backdrop-blur-md border border-border p-2 rounded-full shadow-md text-foreground hover:bg-primary/10 transition-colors" title="Share App">
+          <ShareRoundedIcon />
+        </button>
+        {/* QUEUE COUNTER */}
+        <div className={`px-3 py-1.5 rounded-full shadow text-sm font-mono border ${isPending ? "bg-orange-100 border-orange-300 text-orange-600" : "bg-card/80 border-border"}`}>
+          {isPending ? "⏳" : `💾 ${queueAddr.length}/50`}
+        </div>
+      </div>
 
       <div className="relative w-full h-full flex items-center justify-center z-10 pointer-events-none">
         <div className="relative w-64 h-80 pointer-events-auto">
@@ -467,7 +513,9 @@ export default function Home() {
       </div>
 
       <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
-        <button onClick={handleSaveAction} disabled={isPending || (isConnected && queueAddr.length === 0)} className={`w-full max-w-xs py-4 rounded-full font-bold shadow-2xl transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${queueAddr.length >= 50 ? "bg-destructive text-destructive-foreground animate-bounce" : (isConnected && queueAddr.length === 0 ? "bg-muted text-muted-foreground cursor-default" : "bg-primary text-primary-foreground")}`}>{isPending ? "⏳ Processing..." : (!isConnected ? <span className="flex items-center gap-2"><Wallet className="w-5 h-5" /> Connect Wallet</span> : (queueAddr.length === 0 ? "Swipe to Start" : `Save Progress (${queueAddr.length})`))}</button>
+        <button onClick={handleSaveAction} disabled={isPending || (isConnected && queueAddr.length === 0)} className={`w-full max-w-xs py-4 rounded-full font-bold shadow-2xl transition hover:scale-105 active:scale-95 flex justify-center items-center gap-2 ${queueAddr.length >= 50 ? "bg-destructive text-destructive-foreground animate-bounce" : (isConnected && queueAddr.length === 0 ? "bg-muted text-muted-foreground cursor-default" : "bg-primary text-primary-foreground")}`}>
+          {isPending ? "⏳ Processing..." : (!isConnected ? <span className="flex items-center gap-2"><AccountBalanceWalletRoundedIcon /> Connect Wallet</span> : (queueAddr.length === 0 ? "Swipe to Start" : `Save Progress (${queueAddr.length})`))}
+        </button>
       </div>
     </main>
   );
