@@ -13,16 +13,23 @@ import {
   useBalance,
 } from "wagmi";
 import { base } from "wagmi/chains";
-// Menggunakan icon dari MUI Material Icons
+
+// 👇 UPDATE: Semua Icon menggunakan Material UI
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import ChatBubbleRoundedIcon from '@mui/icons-material/ChatBubbleRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
+import LocationOnRoundedIcon from '@mui/icons-material/LocationOnRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
+import ManRoundedIcon from '@mui/icons-material/ManRounded';
+import WomanRoundedIcon from '@mui/icons-material/WomanRounded';
 
 import SwipeCard, { Profile as SwipeProfile } from "../components/SwipeCard";
 import { CONTRACT_ADDRESS, DATING_ABI } from "../constants";
-import { METADATA } from "../lib/utils"; 
+import { METADATA } from "../lib/utils";
 
 type FarcasterUser = SwipeProfile & {
   fid: number;
@@ -66,6 +73,7 @@ function MatchModal({
     buttonText = "Chat on Warpcast";
     ButtonIcon = ChatBubbleRoundedIcon;
   } else {
+    // Fallback ke Profil atau BaseScan jika username tidak ada
     if (partner.username && partner.username !== "Unknown") {
       chatLink = `https://warpcast.com/${partner.username}`;
     } else {
@@ -319,7 +327,7 @@ export default function Home() {
           if (foundProfile) {
             setMatchPartner(foundProfile);
           } else {
-            // 👇 FIX: Menambahkan pfp_url: null agar sesuai tipe FarcasterUser
+            // Fix: Added null pfp_url fallback
             setMatchPartner({
                fid: 0, 
                username: "Unknown", 
@@ -407,14 +415,12 @@ export default function Home() {
   // 👇 3. ACTION HANDLERS (SHARE & ADD APP)
   const handleShare = useCallback(() => {
     try {
-      // Compose Cast dengan teks yang sudah diisi
       sdk.actions.composeCast({
         text: "I'm finding my on-chain match on Base Dating! 💙\n\nCheck it out:",
         embeds: [METADATA.homeUrl]
       });
     } catch (e) {
       console.error("Share failed", e);
-      // Fallback jika tidak di dalam Farcaster client
       if (typeof window !== "undefined") {
         window.open(`https://warpcast.com/~/compose?text=Find+your+on-chain+match!&embeds[]=${METADATA.homeUrl}`, "_blank");
       }
@@ -423,7 +429,6 @@ export default function Home() {
 
   const handleAddApp = useCallback(() => {
     try {
-      // Meminta client untuk menambahkan Mini App ini
       sdk.actions.addFrame();
     } catch (e) {
       console.error("Add app failed", e);
@@ -447,9 +452,19 @@ export default function Home() {
           <div className="text-6xl mb-6 animate-bounce">🔵</div>
           <h1 className="text-3xl font-black text-primary mb-6">Welcome to<br />Base Dating</h1>
           <div className="bg-card border border-border rounded-2xl p-6 w-full shadow-sm mb-8 text-left space-y-4">
-             <div className="flex gap-3"><span className="text-xl">🔥</span><p className="text-sm text-muted-foreground">Swipe Profiles (Left=❌, Right=💚)</p></div>
-             <div className="flex gap-3"><span className="text-xl">📍</span><p className="text-sm text-muted-foreground">Smart Matching by Location</p></div>
-             <div className="flex gap-3"><span className="text-xl">💬</span><p className="text-sm text-muted-foreground">Chat via Warpcast / Converse</p></div>
+             {/* 👇 UPDATE: Mengganti Emoji dengan Ikon Material Design & Warna */}
+             <div className="flex gap-3 items-center">
+                <LocalFireDepartmentRoundedIcon className="text-orange-500" />
+                <p className="text-sm text-muted-foreground">Swipe Profiles (Left=<CloseRoundedIcon fontSize="small" className="text-red-500 align-middle"/>, Right=<FavoriteRoundedIcon fontSize="small" className="text-green-500 align-middle"/>)</p>
+             </div>
+             <div className="flex gap-3 items-center">
+                <LocationOnRoundedIcon className="text-blue-500" />
+                <p className="text-sm text-muted-foreground">Smart Matching by Location</p>
+             </div>
+             <div className="flex gap-3 items-center">
+                <ChatBubbleRoundedIcon className="text-purple-500" />
+                <p className="text-sm text-muted-foreground">Chat via Farcaster</p>
+             </div>
           </div>
           <button onClick={() => setIntroStep(2)} className="w-full bg-primary text-primary-foreground p-4 rounded-xl font-bold text-lg shadow-lg">Next</button>
         </div>
@@ -457,8 +472,13 @@ export default function Home() {
         <div className="flex flex-col items-center max-w-md w-full animate-in fade-in slide-in-from-right-4 duration-500">
           <h2 className="text-2xl font-bold text-foreground mb-6">Select Gender</h2>
           <div className="w-full space-y-3">
-            <button onClick={() => setMyGender("male")} className="w-full bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 text-blue-700 dark:text-blue-300 p-4 rounded-xl font-bold">👨 I am a Man</button>
-            <button onClick={() => setMyGender("female")} className="w-full bg-pink-100 dark:bg-pink-900/30 border-2 border-pink-500 text-pink-700 dark:text-pink-300 p-4 rounded-xl font-bold">👩 I am a Woman</button>
+            {/* 👇 UPDATE: Tombol Gender dengan Ikon */}
+            <button onClick={() => setMyGender("male")} className="w-full bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 text-blue-700 dark:text-blue-300 p-4 rounded-xl font-bold flex items-center justify-center gap-2">
+              <ManRoundedIcon /> I am a Man
+            </button>
+            <button onClick={() => setMyGender("female")} className="w-full bg-pink-100 dark:bg-pink-900/30 border-2 border-pink-500 text-pink-700 dark:text-pink-300 p-4 rounded-xl font-bold flex items-center justify-center gap-2">
+              <WomanRoundedIcon /> I am a Woman
+            </button>
           </div>
           <button onClick={() => setIntroStep(1)} className="mt-6 text-xs text-muted-foreground underline">Back</button>
         </div>
@@ -508,8 +528,15 @@ export default function Home() {
       </div>
 
       <div className="absolute top-1/2 w-full flex justify-between px-4 pointer-events-none transform -translate-y-1/2 opacity-20 dark:opacity-30">
-         <div className="flex flex-col items-center"><span className="text-5xl">❌</span><span className="font-black text-destructive mt-2 text-xl">NOPE</span></div>
-         <div className="flex flex-col items-center"><span className="text-5xl">💚</span><span className="font-black text-green-500 mt-2 text-xl">LIKE</span></div>
+         {/* 👇 UPDATE: Ikon Besar untuk Swipe Indikator */}
+         <div className="flex flex-col items-center">
+            <CloseRoundedIcon sx={{ fontSize: 60 }} className="text-destructive" />
+            <span className="font-black text-destructive mt-2 text-xl">NOPE</span>
+         </div>
+         <div className="flex flex-col items-center">
+            <FavoriteRoundedIcon sx={{ fontSize: 60 }} className="text-green-500" />
+            <span className="font-black text-green-500 mt-2 text-xl">LIKE</span>
+         </div>
       </div>
 
       <div className="absolute bottom-8 w-full flex justify-center z-50 px-4 pointer-events-auto">
