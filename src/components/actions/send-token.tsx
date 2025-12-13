@@ -8,9 +8,8 @@ import { useSendCalls } from "wagmi";
 import { parseUnits, encodeFunctionData, erc20Abi } from "viem";
 import { Attribution } from "ox/erc8021";
 
-// 👇 Alamat wallet tujuan (Updated)
+// 👇 Alamat wallet tujuan
 const RECIPIENT_ADDRESS = "0x4fba95e4772be6d37a0c931D00570Fe2c9675524";
-// 👇 Alamat Smart Contract USDC di Base
 const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 export function SendTokenAction() {
@@ -19,7 +18,6 @@ export function SendTokenAction() {
   const [recipientAddress, setRecipientAddress] = useState<string>(RECIPIENT_ADDRESS);
   const [amount, setAmount] = useState<string>("1");
 
-  // Menggunakan hook wagmi untuk mengirim transaksi (EIP-5792)
   const { sendCallsAsync } = useSendCalls();
 
   const handleSendToken = useCallback(async (): Promise<void> => {
@@ -31,33 +29,30 @@ export function SendTokenAction() {
         throw new Error("Invalid amount");
       }
 
-      // 1. Konversi jumlah input ke BigInt dengan 6 desimal (karena USDC punya 6 desimal)
       const amountBigInt = parseUnits(amount, 6);
       
-      // 2. Encode data transaksi untuk fungsi 'transfer' ERC20
       const data = encodeFunctionData({
         abi: erc20Abi,
         functionName: "transfer",
         args: [recipientAddress as `0x${string}`, amountBigInt],
       });
 
-      // 3. Kirim transaksi dengan atribusi Builder Code
       const id = await sendCallsAsync({
         calls: [
           {
             to: USDC_ADDRESS,
             data: data,
-            value: 0n,
+            // 👇 HAPUS value: 0n (Penyebab Error BigInt)
           },
         ],
         capabilities: {
-          // 👇 BUILDER CODE BARU
           dataSuffix: Attribution.toDataSuffix({ codes: ["bc_9x9dywpq"] }),
         },
       });
       
       console.log("Send successful, Call ID:", id);
-      setSuccess(`Transaction initiated! ID: ${id}`);
+      const displayId = typeof id === 'string' ? id : JSON.stringify(id);
+      setSuccess(`Transaction initiated! ID: ${displayId}`);
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Error sending token";

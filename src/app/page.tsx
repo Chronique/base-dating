@@ -374,7 +374,7 @@ export default function Home() {
     setProfiles((current) => current.filter((p) => p.custody_address !== profile.custody_address));
   }, [myLocation, saveCount]);
 
-  // 👇 UPDATE: Handler Transaksi dengan Builder Code (FIXED)
+  // 👇 UPDATE: Handler Transaksi dengan Builder Code (FIXED - NO value:0n)
   const handleSaveAction = async () => {
     if (!isConnected) {
       const farcasterConnector = connectors.find((c) => c.name === "Farcaster Mini App");
@@ -398,12 +398,12 @@ export default function Home() {
         args: [queueAddr as `0x${string}`[], queueLikes],
       });
 
-      // 2. Send Call dengan Builder Code
+      // 2. Send Call dengan Builder Code (tanpa value 0n)
       const result = await sendCallsAsync({
         calls: [{
           to: CONTRACT_ADDRESS as `0x${string}`,
           data: calldata,
-          value: 0n,
+          // 👇 HAPUS value: 0n untuk menghindari error BigInt di Farcaster
         }],
         capabilities: {
            // Builder Code
@@ -422,13 +422,12 @@ export default function Home() {
       setQueueLikes([]);
       localStorage.removeItem("baseDatingQueue");
       
-      // Karena `result` dari sendCallsAsync bisa string (ID) atau object (tergantung versi), 
-      // kita handle aman untuk alert
       const displayId = typeof txId === 'string' ? txId : JSON.stringify(txId);
       alert(`✅ Swipes Saved to Blockchain! (Ref: ${displayId.slice(0,8)}...)`);
 
     } catch (err) {
       console.error("Transaction failed:", err);
+      // alert("Transaction failed. Check console.");
     }
   };
 
