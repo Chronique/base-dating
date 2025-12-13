@@ -3,18 +3,18 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import sdk from "@farcaster/frame-sdk";
 import {
-  useWriteContract,
-  useWaitForTransactionReceipt,
   useAccount,
   useConnect,
   useWatchContractEvent,
   useChainId,
   useSwitchChain,
   useBalance,
+  useSendCalls,
 } from "wagmi";
+import { encodeFunctionData } from "viem";
+import { Attribution } from "ox/erc8021";
 import { base } from "wagmi/chains";
 
-// 👇 UPDATE: Semua Icon menggunakan Material UI
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import ChatBubbleRoundedIcon from '@mui/icons-material/ChatBubbleRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
@@ -145,8 +145,7 @@ export default function Home() {
   const isWrongNetwork = isConnected && chainId !== base.id;
   const hasAttemptedAutoConnect = useRef(false);
 
-  const { data: hash, writeContract, isPending, error: txError } = useWriteContract();
-  const { isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { sendCallsAsync, isPending } = useSendCalls();
 
   // 1. INIT & GET MY LOCATION (PROFILE OR IP)
   useEffect(() => {
@@ -375,7 +374,8 @@ export default function Home() {
     setProfiles((current) => current.filter((p) => p.custody_address !== profile.custody_address));
   }, [myLocation, saveCount]);
 
-  const handleSaveAction = () => {
+  // 👇 UPDATE: Handler Transaksi dengan Builder Code (FIXED)
+  const handleSaveAction = async () => {
     if (!isConnected) {
       const farcasterConnector = connectors.find((c) => c.name === "Farcaster Mini App");
       if (farcasterConnector) {
@@ -390,29 +390,48 @@ export default function Home() {
     }
     if (queueAddr.length === 0) { alert("Swipe first!"); return; }
     
-    writeContract({
-      address: CONTRACT_ADDRESS as `0x${string}`,
-      abi: DATING_ABI,
-      functionName: "batchSwipe",
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      args: [queueAddr as any, queueLikes],
-    });
-  };
+    try {
+      // 1. Encode Data
+      const calldata = encodeFunctionData({
+        abi: DATING_ABI,
+        functionName: "batchSwipe",
+        args: [queueAddr as `0x${string}`[], queueLikes],
+      });
 
-  useEffect(() => {
-    if (isSuccess) {
+      // 2. Send Call dengan Builder Code
+      const result = await sendCallsAsync({
+        calls: [{
+          to: CONTRACT_ADDRESS as `0x${string}`,
+          data: calldata,
+          value: 0n,
+        }],
+        capabilities: {
+           // Builder Code
+           dataSuffix: Attribution.toDataSuffix({ codes: ["bc_9x9dywpq"] }),
+        }
+      });
+      
+      const txId = result; 
+      console.log("Transaction initiated, ID:", txId);
+      
+      // 3. Optimistic Success UI
       const newCount = saveCount + 1;
       setSaveCount(newCount);
       localStorage.setItem("baseDatingSaveCount", newCount.toString());
-
       setQueueAddr([]);
       setQueueLikes([]);
       localStorage.removeItem("baseDatingQueue");
-      alert(`✅ Swipes Saved! (Total Saves: ${newCount})`);
-    }
-  }, [isSuccess]);
+      
+      // Karena `result` dari sendCallsAsync bisa string (ID) atau object (tergantung versi), 
+      // kita handle aman untuk alert
+      const displayId = typeof txId === 'string' ? txId : JSON.stringify(txId);
+      alert(`✅ Swipes Saved to Blockchain! (Ref: ${displayId.slice(0,8)}...)`);
 
-  // 👇 3. ACTION HANDLERS (SHARE & ADD APP)
+    } catch (err) {
+      console.error("Transaction failed:", err);
+    }
+  };
+
   const handleShare = useCallback(() => {
     try {
       sdk.actions.composeCast({
@@ -452,7 +471,6 @@ export default function Home() {
           <div className="text-6xl mb-6 animate-bounce">🔵</div>
           <h1 className="text-3xl font-black text-primary mb-6">Welcome to<br />Base Dating</h1>
           <div className="bg-card border border-border rounded-2xl p-6 w-full shadow-sm mb-8 text-left space-y-4">
-             {/* 👇 UPDATE: Mengganti Emoji dengan Ikon Material Design & Warna */}
              <div className="flex gap-3 items-center">
                 <LocalFireDepartmentRoundedIcon className="text-orange-500" />
                 <p className="text-sm text-muted-foreground">Swipe Profiles (Left=<CloseRoundedIcon fontSize="small" className="text-red-500 align-middle"/>, Right=<FavoriteRoundedIcon fontSize="small" className="text-green-500 align-middle"/>)</p>
@@ -472,7 +490,6 @@ export default function Home() {
         <div className="flex flex-col items-center max-w-md w-full animate-in fade-in slide-in-from-right-4 duration-500">
           <h2 className="text-2xl font-bold text-foreground mb-6">Select Gender</h2>
           <div className="w-full space-y-3">
-            {/* 👇 UPDATE: Tombol Gender dengan Ikon */}
             <button onClick={() => setMyGender("male")} className="w-full bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 text-blue-700 dark:text-blue-300 p-4 rounded-xl font-bold flex items-center justify-center gap-2">
               <ManRoundedIcon /> I am a Man
             </button>
@@ -496,20 +513,15 @@ export default function Home() {
         />
       )}
       
-      {/* HEADER: Wallet & Actions */}
       <div className="absolute top-4 left-4 z-50"><div className="bg-card/80 backdrop-blur-md border border-border text-xs px-3 py-1 rounded-full shadow-md">{isConnected ? `💰 ${balance ? Number(balance.formatted).toFixed(4) : "..."} ETH` : "Connecting..."}</div></div>
       
-      {/* 👇 TOP RIGHT: Action Buttons (Add, Share) & Queue Counter */}
       <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
-        {/* ADD APP BUTTON */}
         <button onClick={handleAddApp} className="bg-card/80 backdrop-blur-md border border-border p-2 rounded-full shadow-md text-foreground hover:bg-primary/10 transition-colors" title="Add Mini App">
           <AddRoundedIcon />
         </button>
-        {/* SHARE BUTTON */}
         <button onClick={handleShare} className="bg-card/80 backdrop-blur-md border border-border p-2 rounded-full shadow-md text-foreground hover:bg-primary/10 transition-colors" title="Share App">
           <ShareRoundedIcon />
         </button>
-        {/* QUEUE COUNTER */}
         <div className={`px-3 py-1.5 rounded-full shadow text-sm font-mono border ${isPending ? "bg-orange-100 border-orange-300 text-orange-600" : "bg-card/80 border-border"}`}>
           {isPending ? "⏳" : `💾 ${queueAddr.length}/50`}
         </div>
@@ -528,7 +540,6 @@ export default function Home() {
       </div>
 
       <div className="absolute top-1/2 w-full flex justify-between px-4 pointer-events-none transform -translate-y-1/2 opacity-20 dark:opacity-30">
-         {/* 👇 UPDATE: Ikon Besar untuk Swipe Indikator */}
          <div className="flex flex-col items-center">
             <CloseRoundedIcon sx={{ fontSize: 60 }} className="text-destructive" />
             <span className="font-black text-destructive mt-2 text-xl">NOPE</span>
