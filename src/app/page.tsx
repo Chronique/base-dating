@@ -224,9 +224,14 @@ export default function Home() {
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
       hasAttemptedAutoConnect.current = true;
-      const farcasterConnector = connectors.find((c) => c.name === "Farcaster Mini App");
-      if (farcasterConnector) connect({ connector: farcasterConnector });
-      else {
+      // 👇 PERBAIKAN: Cari konektor Farcaster dengan lebih fleksibel
+      const farcasterConnector = connectors.find((c) => 
+        c.id === "farcaster" || c.name.toLowerCase().includes("farcaster")
+      );
+
+      if (farcasterConnector) {
+        connect({ connector: farcasterConnector });
+      } else {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
           if (injectedConnector) connect({ connector: injectedConnector });
@@ -272,7 +277,11 @@ export default function Home() {
   // 👇 DUAL MODE HANDLER: Smart Wallet First -> Fallback Standard
   const handleSaveAction = async () => {
     if (!isConnected) {
-      const farcasterConnector = connectors.find((c) => c.name === "Farcaster Mini App");
+      // 👇 PERBAIKAN: Gunakan logika pencarian yang sama fleksibelnya
+      const farcasterConnector = connectors.find((c) => 
+        c.id === "farcaster" || c.name.toLowerCase().includes("farcaster")
+      );
+      
       if (farcasterConnector) connect({ connector: farcasterConnector });
       else {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

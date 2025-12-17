@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
-import { METADATA } from "../lib/utils"; // Import METADATA dari utils
+import FrameProvider from "../components/providers/FrameProvider"; // 👇 Perbaikan Import
+import { METADATA } from "../lib/utils"; 
 
 export const metadata: Metadata = {
-  // Menggunakan variable dari METADATA
   title: METADATA.name,
   description: METADATA.description,
   openGraph: {
@@ -22,7 +22,6 @@ export const metadata: Metadata = {
     ],
   },
   other: {
-    // Kunci agar Farcaster mengenali ini sebagai App
     "fc:frame": JSON.stringify({
       version: "next",
       imageUrl: METADATA.bannerImageUrl,
@@ -48,7 +47,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          {/* 👇 Bungkus children dengan FrameProvider */}
+          <FrameProvider>
+            {children}
+          </FrameProvider>
+        </Providers>
       </body>
     </html>
   );
