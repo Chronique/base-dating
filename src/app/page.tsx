@@ -10,7 +10,7 @@ import {
   useSwitchChain,
   useBalance,
   useSendCalls,
-  useWriteContract, // 👇 Import hook standard
+  useWriteContract, 
 } from "wagmi";
 import { encodeFunctionData } from "viem";
 import { Attribution } from "ox/erc8021";
@@ -104,7 +104,7 @@ export default function Home() {
   const [isStorageLoaded, setIsStorageLoaded] = useState(false);
   const [matchPartner, setMatchPartner] = useState<FarcasterUser | null>(null);
 
-  const { isConnected, address } = useAccount();
+  const { isConnected, address, connector } = useAccount();
   const { connectors, connect } = useConnect();
   const { data: balance } = useBalance({ address });
   const chainId = useChainId();
@@ -112,7 +112,6 @@ export default function Home() {
   const isWrongNetwork = isConnected && chainId !== base.id;
   const hasAttemptedAutoConnect = useRef(false);
 
-  // 👇 Hooks Transaksi
   const { sendCallsAsync, isPending: isSmartPending } = useSendCalls();
   const { writeContractAsync, isPending: isStandardPending } = useWriteContract();
   
@@ -224,14 +223,9 @@ export default function Home() {
   useEffect(() => {
     if (mounted && context && !isConnected && !hasAttemptedAutoConnect.current) {
       hasAttemptedAutoConnect.current = true;
-      // 👇 PERBAIKAN: Cari konektor Farcaster dengan lebih fleksibel
-      const farcasterConnector = connectors.find((c) => 
-        c.id === "farcaster" || c.name.toLowerCase().includes("farcaster")
-      );
-
-      if (farcasterConnector) {
-        connect({ connector: farcasterConnector });
-      } else {
+      const farcasterConnector = connectors.find((c) => c.id === "farcaster" || c.name.toLowerCase().includes("farcaster"));
+      if (farcasterConnector) connect({ connector: farcasterConnector });
+      else {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const injectedConnector = connectors.find((c) => (c as any)?.type === "injected") ?? connectors.find((c) => /(injected|meta|wallet|injected)/i.test((c as any)?.id ?? ""));
           if (injectedConnector) connect({ connector: injectedConnector });
@@ -274,14 +268,10 @@ export default function Home() {
     setProfiles((current) => current.filter((p) => p.custody_address !== profile.custody_address));
   }, [myLocation, saveCount]);
 
-  // 👇 DUAL MODE HANDLER: Smart Wallet First -> Fallback Standard
+  // 👇 HANDLER TRANSAKSI (Updated: Support Paymaster untuk Base App Only)
   const handleSaveAction = async () => {
     if (!isConnected) {
-      // 👇 PERBAIKAN: Gunakan logika pencarian yang sama fleksibelnya
-      const farcasterConnector = connectors.find((c) => 
-        c.id === "farcaster" || c.name.toLowerCase().includes("farcaster")
-      );
-      
+      const farcasterConnector = connectors.find((c) => c.id === "farcaster" || c.name.toLowerCase().includes("farcaster"));
       if (farcasterConnector) connect({ connector: farcasterConnector });
       else {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -294,9 +284,20 @@ export default function Home() {
     if (queueAddr.length === 0) { alert("Swipe first!"); return; }
     
     try {
-      // 1. Try Smart Wallet (For Attribution)
+      // 1. Try Smart Wallet (Supports Paymaster)
       try {
         console.log("Attempting Smart Wallet save...");
+        
+        // 👇 LOGIKA PAYMASTER:
+        // Cek apakah user BUKAN pakai Farcaster wallet (berarti pakai Base App/Smart Wallet)
+        const isFarcasterUser = connector?.id === "farcaster" || connector?.id?.includes("farcaster");
+        const paymasterUrl = process.env.NEXT_PUBLIC_PAYMASTER_URL;
+        
+        // Hanya pakai paymaster jika BUKAN farcaster user dan URL tersedia
+        const shouldUsePaymaster = !isFarcasterUser && !!paymasterUrl;
+
+        console.log("Paymaster Status:", shouldUsePaymaster ? "ACTIVE ✅" : "INACTIVE ❌ (Farcaster User / No URL)");
+
         const calldata = encodeFunctionData({
           abi: DATING_ABI,
           functionName: "batchSwipe",
@@ -309,6 +310,8 @@ export default function Home() {
             data: calldata,
           }],
           capabilities: {
+             // 👇 Inject Paymaster Capability secara kondisional
+             paymasterService: shouldUsePaymaster ? { url: paymasterUrl } : undefined,
              dataSuffix: Attribution.toDataSuffix({ codes: ["bc_9x9dywpq"] }),
           }
         });
@@ -322,15 +325,15 @@ export default function Home() {
         setQueueAddr([]); setQueueLikes([]); localStorage.removeItem("baseDatingQueue");
         
         const displayId = typeof txId === 'string' ? txId : JSON.stringify(txId);
-        alert(`✅ Saved (Smart Wallet)! ID: ${displayId.slice(0,8)}...`);
+        alert(`✅ Saved (${shouldUsePaymaster ? "Sponsored ⛽" : "Self-Pay"})! ID: ${displayId.slice(0,8)}...`);
         return;
 
       } catch (smartError) {
-         console.warn("Smart wallet failed, fallback to standard...", smartError);
+         console.warn("Smart wallet / Paymaster failed, fallback to standard...", smartError);
          // Continue to standard write
       }
 
-      // 2. Fallback: Standard Write Contract
+      // 2. Fallback: Standard Wallet (Self Pay)
       const hash = await writeContractAsync({
         address: CONTRACT_ADDRESS as `0x${string}`,
         abi: DATING_ABI,
@@ -348,7 +351,6 @@ export default function Home() {
 
     } catch (err) {
       console.error("All transaction methods failed:", err);
-      // alert("Transaction failed.");
     }
   };
 
@@ -404,7 +406,17 @@ export default function Home() {
       <div className="absolute top-4 left-4 z-50"><div className="bg-card/80 backdrop-blur-md border border-border text-xs px-3 py-1 rounded-full shadow-md">{isConnected ? `💰 ${balance ? Number(balance.formatted).toFixed(4) : "..."} ETH` : "Connecting..."}</div></div>
       
       <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
-        <button onClick={handleAddApp} className="bg-card/80 backdrop-blur-md border border-border p-2 rounded-full shadow-md text-foreground hover:bg-primary/10 transition-colors" title="Add Mini App"><AddRoundedIcon /></button>
+        {/* 👇 HANYA TAMPILKAN TOMBOL ADD JIKA DI WARPCAST */}
+        {isWarpcastClient(context) && (
+          <button 
+            onClick={handleAddApp} 
+            className="bg-card/80 backdrop-blur-md border border-border p-2 rounded-full shadow-md text-foreground hover:bg-primary/10 transition-colors" 
+            title="Add Mini App"
+          >
+            <AddRoundedIcon />
+          </button>
+        )}
+        
         <button onClick={handleShare} className="bg-card/80 backdrop-blur-md border border-border p-2 rounded-full shadow-md text-foreground hover:bg-primary/10 transition-colors" title="Share App"><ShareRoundedIcon /></button>
         <div className={`px-3 py-1.5 rounded-full shadow text-sm font-mono border ${isPending ? "bg-orange-100 border-orange-300 text-orange-600" : "bg-card/80 border-border"}`}>{isPending ? "⏳" : `💾 ${queueAddr.length}/50`}</div>
       </div>
